@@ -281,19 +281,36 @@ export const SupabaseAuthService = {
   },
 
   /**
+   * Fetches all registered families from Supabase with LocalStore fallback
+   */
+  async getAllFamilies(): Promise<Family[]> {
+    try {
+      const res = await fetch("/api/admin/family");
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.families && json.families.length > 0) {
+          LocalStore.saveAllFamilies(json.families);
+          return json.families;
+        }
+      }
+    } catch (e) {
+      console.warn("Could not fetch families from API:", e);
+    }
+    return LocalStore.getAllFamilies();
+  },
+
+  /**
    * Superadmin permanently deletes a family and its cascade data
    */
   async deleteFamily(familyId: string): Promise<AuthResponse> {
-    const supabase = createClient();
-    if (supabase) {
-      try {
-        const { error } = await supabase.from("families").delete().eq("id", familyId);
-        if (error) {
-          console.warn("Supabase delete family error:", error.message);
-        }
-      } catch (err) {
-        console.warn("Supabase delete family error:", err);
-      }
+    try {
+      await fetch("/api/admin/family", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ familyId }),
+      });
+    } catch (err) {
+      console.warn("API delete family error:", err);
     }
     return LocalStore.deleteFamily(familyId);
   },
@@ -302,15 +319,15 @@ export const SupabaseAuthService = {
    * Superadmin permanently deletes their own account
    */
   async deleteSuperadminAccount(): Promise<AuthResponse> {
-    const supabase = createClient();
     const session = LocalStore.getCurrentSession();
-    if (supabase && session.userId) {
-      try {
-        await supabase.from("profiles").delete().eq("id", session.userId);
-        await supabase.auth.signOut();
-      } catch (err) {
-        console.warn("Supabase delete superadmin error:", err);
-      }
+    try {
+      await fetch("/api/admin/superadmin", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: session.userId }),
+      });
+    } catch (err) {
+      console.warn("API delete superadmin error:", err);
     }
     LocalStore.deleteSuperadminAccount();
     if (typeof window !== "undefined") {

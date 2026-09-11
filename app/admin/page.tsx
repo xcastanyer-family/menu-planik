@@ -40,10 +40,11 @@ export default function AdminDashboardPage() {
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const refresh = () => {
+  const refresh = async () => {
     setSession(LocalStore.getCurrentSession());
-    setFamilies(LocalStore.getAllFamilies());
     setRecipes(LocalStore.getAllRecipesRaw());
+    const fams = await SupabaseAuthService.getAllFamilies();
+    setFamilies(fams);
   };
 
   useEffect(() => {

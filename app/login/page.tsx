@@ -54,28 +54,9 @@ function LoginFormContent() {
     window.location.href = target;
   };
 
-  const handleQuickLogin = async (email: string, pass: string) => {
+  const fillEmail = (email: string) => {
     setLoginEmail(email);
-    setLoginPassword(pass);
-    setIsLoginLoading(true);
-    const result = await SupabaseAuthService.signIn({
-      email,
-      password: pass,
-    });
-    setIsLoginLoading(false);
-
-    if (result.success) {
-      toast.success(result.message);
-      if (result.session?.role === "superadmin") {
-        navigateAfterAuth("/admin");
-      } else if (result.session?.role === "admin" && result.session?.status === "pending") {
-        navigateAfterAuth("/family");
-      } else {
-        navigateAfterAuth("/planner");
-      }
-    } else {
-      toast.error(result.message);
-    }
+    setLoginPassword("");
   };
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
@@ -244,50 +225,47 @@ function LoginFormContent() {
             {/* Quick Demo Access */}
             <div className="pt-3 border-t border-zinc-100 dark:border-zinc-800">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 mb-2 text-center">
-                Comptes de Demostració (1 clic)
+                Comptes de Demostració
               </p>
               <div className="grid grid-cols-1 gap-1.5">
                 <button
                   type="button"
-                  disabled={isLoginLoading}
-                  onClick={() => handleQuickLogin("xavi@menuplanik.cat", "admin123")}
+                  onClick={() => fillEmail("xavi@menuplanik.cat")}
                   className="w-full text-left px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/60 hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-zinc-200/60 dark:border-zinc-700/60 transition text-xs flex items-center justify-between"
                 >
                   <div>
                     <span className="font-semibold text-zinc-800 dark:text-zinc-200">Admin Família</span>
                     <span className="text-[10px] text-zinc-400 ml-1.5">(Xavi)</span>
-                    <div className="text-[10px] text-zinc-400">xavi@menuplanik.cat • admin123</div>
+                    <div className="text-[10px] text-zinc-400">xavi@menuplanik.cat • Clau: admin123</div>
                   </div>
-                  <span className="text-[10px] font-medium text-primary-600 dark:text-primary-400">Entrar →</span>
+                  <span className="text-[10px] font-medium text-primary-600 dark:text-primary-400">Emplenar correu</span>
                 </button>
 
                 <button
                   type="button"
-                  disabled={isLoginLoading}
-                  onClick={() => handleQuickLogin("julia@menuplanik.cat", "user123")}
+                  onClick={() => fillEmail("julia@menuplanik.cat")}
                   className="w-full text-left px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/60 hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-zinc-200/60 dark:border-zinc-700/60 transition text-xs flex items-center justify-between"
                 >
                   <div>
                     <span className="font-semibold text-zinc-800 dark:text-zinc-200">Membre Família</span>
                     <span className="text-[10px] text-zinc-400 ml-1.5">(Júlia)</span>
-                    <div className="text-[10px] text-zinc-400">julia@menuplanik.cat • user123</div>
+                    <div className="text-[10px] text-zinc-400">julia@menuplanik.cat • Clau: user123</div>
                   </div>
-                  <span className="text-[10px] font-medium text-primary-600 dark:text-primary-400">Entrar →</span>
+                  <span className="text-[10px] font-medium text-primary-600 dark:text-primary-400">Emplenar correu</span>
                 </button>
 
                 <button
                   type="button"
-                  disabled={isLoginLoading}
-                  onClick={() => handleQuickLogin("admin@menuplanik.cat", "superadmin123")}
+                  onClick={() => fillEmail("admin@menuplanik.cat")}
                   className="w-full text-left px-3 py-2 rounded-xl bg-amber-50/60 dark:bg-amber-950/20 hover:bg-amber-100/60 dark:hover:bg-amber-900/30 border border-amber-200/60 dark:border-amber-900/40 transition text-xs flex items-center justify-between"
                 >
                   <div>
                     <span className="font-semibold text-amber-900 dark:text-amber-200 flex items-center gap-1">
                       <Crown className="w-3 h-3 text-amber-500" /> Superadmin
                     </span>
-                    <div className="text-[10px] text-amber-600/80 dark:text-amber-400/80">admin@menuplanik.cat • superadmin123</div>
+                    <div className="text-[10px] text-amber-600/80 dark:text-amber-400/80">admin@menuplanik.cat • Clau: superadmin123</div>
                   </div>
-                  <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400">Entrar →</span>
+                  <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400">Emplenar correu</span>
                 </button>
               </div>
             </div>

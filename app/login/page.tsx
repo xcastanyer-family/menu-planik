@@ -63,7 +63,7 @@ function LoginFormContent() {
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!loginEmail.trim()) {
-      toast.error("Introdueix el teu correu electrònic.");
+      toast.error("Introdueix el teu usuari o correu electrònic.");
       return;
     }
     if (!loginPassword.trim()) {
@@ -72,6 +72,21 @@ function LoginFormContent() {
     }
 
     setIsLoginLoading(true);
+
+    // 1. Check local session/store first (instant and supports username/email)
+    const localResult = LocalStore.signIn(loginEmail.trim(), loginPassword.trim());
+    if (localResult.success) {
+      setIsLoginLoading(false);
+      toast.success(localResult.message);
+      if (localResult.session?.role === "superadmin") {
+        navigateAfterAuth("/admin");
+      } else {
+        navigateAfterAuth("/planner");
+      }
+      return;
+    }
+
+    // 2. Otherwise try Supabase
     const result = await SupabaseAuthService.signIn({
       email: loginEmail,
       password: loginPassword,
@@ -92,17 +107,25 @@ function LoginFormContent() {
 
   const handleUserSignUpSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!userFullName.trim() || !userEmail.trim() || !userPassword.trim() || !userFamilyCode.trim()) {
-      toast.error("Omple tots els camps obligatoris.");
+    if (!userFamilyCode.trim()) {
+      toast.error("Introdueix el codi de família.");
+      return;
+    }
+    if (!userFullName.trim()) {
+      toast.error("Introdueix el teu usuari o nom.");
+      return;
+    }
+    if (!userPassword.trim()) {
+      toast.error("Introdueix la contrasenya.");
       return;
     }
 
     setIsUserLoading(true);
-    const result = await SupabaseAuthService.signUpUser({
-      email: userEmail,
-      password: userPassword,
-      fullName: userFullName,
-      familyCode: userFamilyCode,
+    // Direct and simple user creation without Supabase validation
+    const result = LocalStore.signUpSimpleUser({
+      familyCode: userFamilyCode.trim(),
+      username: userFullName.trim(),
+      password: userPassword.trim(),
     });
     setIsUserLoading(false);
 
@@ -194,9 +217,9 @@ function LoginFormContent() {
           <div className="p-6 space-y-4">
             <form onSubmit={handleLoginSubmit} className="space-y-4">
               <Input
-                label="Correu Electrònic"
-                type="email"
-                placeholder="el-teu-correu@exemple.cat"
+                label="Usuari o Correu Electrònic"
+                type="text"
+                placeholder="usuari o correu@exemple.cat"
                 value={loginEmail}
                 onChange={(e) => setLoginEmail(e.target.value)}
                 required
@@ -300,19 +323,10 @@ function LoginFormContent() {
               </div>
 
               <Input
-                label="Nom Complet *"
-                placeholder="El teu nom"
+                label="Usuari o Nom *"
+                placeholder="El teu nom o usuari"
                 value={userFullName}
                 onChange={(e) => setUserFullName(e.target.value)}
-                required
-              />
-
-              <Input
-                label="Correu Electrònic *"
-                type="email"
-                placeholder="el-teu-correu@exemple.cat"
-                value={userEmail}
-                onChange={(e) => setUserEmail(e.target.value)}
                 required
               />
 
@@ -332,7 +346,7 @@ function LoginFormContent() {
                 className="w-full"
               >
                 <UserPlus className="w-4 h-4 mr-2" />
-                Uneix-te a la Família
+                Crea Usuari i Entra
               </Button>
             </form>
           </div>

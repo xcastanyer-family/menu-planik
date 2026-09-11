@@ -121,19 +121,21 @@ export const LocalStore = {
     };
   },
 
-  signIn(email: string, password?: string): { success: boolean; message: string; session?: UserSession } {
-    const cleanEmail = email.trim().toLowerCase();
+  signIn(emailOrUsername: string, password?: string): { success: boolean; message: string; session?: UserSession } {
+    const cleanId = emailOrUsername.trim().toLowerCase();
 
     // 1. Check if admin/superadmin
-    const adminRes = this.loginAdmin(cleanEmail, password);
+    const adminRes = this.loginAdmin(cleanId, password);
     if (adminRes.success) {
       return adminRes;
     }
 
-    // 2. Check if member of any family
+    // 2. Check if member of any family by email OR username
     const all = this.getAllFamilies();
     for (const fam of all) {
-      const member = fam.members.find((m) => m.email.toLowerCase() === cleanEmail);
+      const member = fam.members.find(
+        (m) => m.email.toLowerCase() === cleanId || m.name.toLowerCase() === cleanId
+      );
       if (member) {
         const session: UserSession = {
           memberId: member.id,
@@ -141,6 +143,7 @@ export const LocalStore = {
           name: member.name,
           email: member.email,
           role: member.role,
+          status: "active",
           familyCode: fam.code,
           familyName: fam.name,
           isAuthenticated: true,
@@ -156,7 +159,7 @@ export const LocalStore = {
 
     return {
       success: false,
-      message: `No s'ha trobat cap compte associat al correu "${email}". Si és una nova família, registra-la primer.`,
+      message: `No s'ha trobat cap compte associat a "${emailOrUsername}".`,
     };
   },
 
@@ -184,7 +187,100 @@ export const LocalStore = {
     };
   },
 
-  signUpUser(name: string, email: string, _password?: string, familyCode?: string): { success: boolean; message: string; session?: UserSession; family?: Family } {
+  signUpSimpleUser(params: { familyCode: string; username: string; password?: string }): { success: boolean; message: string; session?: UserSession; family?: Family } {
+    const cleanCode = params.familyCode.trim().toUpperCase();
+    const cleanUser = params.username.trim();
+    const email = cleanUser.includes("@")
+      ? cleanUser.toLowerCase()
+      : `${cleanUser.toLowerCase().replace(/\s+/g, ".")}@${cleanCode.toLowerCase()}.local`;
+
+    let all = this.getAllFamilies();
+    let targetFamily = all.find((f) => f.code.toUpperCase() === cleanCode);
+
+    if (!targetFamily) {
+      const fallbackInit = INITIAL_FAMILIES.find((f) => f.code.toUpperCase() === cleanCode);
+      if (fallbackInit) {
+        targetFamily = fallbackInit;
+        this.saveFamily(targetFamily);
+      }
+    }
+
+    // Auto-create family if it does not exist yet so user is never rejected
+    if (!targetFamily) {
+      targetFamily = this.createFamily(
+        `Família ${cleanCode}`,
+        cleanUser,
+        email,
+        true,
+        cleanCode
+      );
+    }
+
+    // Check if member exists or create
+    let member = targetFamily.members.find(
+      (m) => m.name.toLowerCase() === cleanUser.toLowerCase() || m.email.toLowerCase() === email.toLowerCase()
+    );
+    let updatedMembers = [...targetFamily.members];
+
+    if (!member) {
+      const colors = ["#0284c7", "#8b5cf6", "#ec4899", "#f59e0b", "#10b981"];
+      member = {
+        id: `m-${Date.now()}`,
+        familyId: targetFamily.id,
+        name: cleanUser,
+        email: email,
+        password: params.password,
+        role: targetFamily.members.length === 0 ? "admin" : "user",
+        joinedAt: new Date().toISOString(),
+        color: colors[Math.floor(Math.random() * colors.length)],
+      };
+      updatedMembers.push(member);
+      const updatedFamily = { ...targetFamily, members: updatedMembers };
+      this.saveFamily(updatedFamily);
+    } else if (params.password) {
+      member.password = params.password;
+      this.saveFamily({ ...targetFamily, members: updatedMembers });
+    }
+
+    const session: UserSession = {
+      memberId: member.id,
+      familyId: targetFamily.id,
+      name: member.name,
+      email: member.email,
+      role: member.role,
+      status: "active",
+      familyCode: targetFamily.code,
+      familyName: targetFamily.name,
+      isAuthenticated: true,
+    };
+    this.saveCurrentSession(session);
+
+    // Sync to API in background (non-blocking)
+    if (typeof fetch !== "undefined") {
+      fetch("/api/auth/family", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: targetFamily.name,
+          code: targetFamily.code,
+          adminName: cleanUser,
+          adminEmail: email,
+        }),
+      }).catch(() => {});
+    }
+
+    return {
+      success: true,
+      message: `Usuari "${cleanUser}" registrat correctament a la ${targetFamily.name}!`,
+      session,
+      family: targetFamily,
+    };
+  },
+
+  signUpUser(name: string, email: string, password?: string, familyCode?: string): { success: boolean; message: string; session?: UserSession; family?: Family } {
+    if (familyCode && name) {
+      return this.signUpSimpleUser({ familyCode, username: name, password });
+    }
     const res = this.joinFamilyWithCode(familyCode || "", name, email);
     return {
       success: res.success,
@@ -387,10 +483,13 @@ export const LocalStore = {
     }
 
     if (!targetFamily) {
-      return {
-        success: false,
-        message: `El codi "${cleanCode}" no correspon a cap família activa. Comprova-ho amb l'organitzador o registra una nova família.`,
-      };
+      targetFamily = this.createFamily(
+        `Família ${cleanCode}`,
+        name.trim(),
+        email.trim(),
+        true,
+        cleanCode
+      );
     }
 
     if (targetFamily.status === "pending") {

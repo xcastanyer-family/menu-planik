@@ -174,6 +174,7 @@ export interface FamilyMember {
   userId?: string;
   name: string;
   email: string;
+  password?: string;
   role: UserRole;
   joinedAt: string;
   color?: string;

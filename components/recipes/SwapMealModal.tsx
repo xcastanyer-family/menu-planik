@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { Recipe, MealSlot } from "@/types";
 import { Search, Sparkles, Clock, Flame } from "lucide-react";
 import { formatDayName, formatMealTypeName } from "@/lib/utils";
+import { LocalStore } from "@/lib/storage/local-store";
 import { toast } from "sonner";
 
 interface SwapMealModalProps {
@@ -37,6 +38,7 @@ export const SwapMealModal: React.FC<SwapMealModalProps> = ({
   const handleAiSuggest = async () => {
     setIsSuggestingAI(true);
     try {
+      const userPrefs = typeof window !== "undefined" ? LocalStore.getPreferences() : null;
       const res = await fetch("/api/ai/suggest-meal", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -44,6 +46,7 @@ export const SwapMealModal: React.FC<SwapMealModalProps> = ({
           mealType: slot.mealType,
           day: slot.day,
           notes: "Alguna cosa fresca, equilibrada i deliciosa en català",
+          customApiKey: userPrefs?.geminiApiKey,
         }),
       });
       const data = await res.json();

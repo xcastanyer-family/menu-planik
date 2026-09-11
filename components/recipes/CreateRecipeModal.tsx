@@ -5,6 +5,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Input, Textarea, Select } from "@/components/ui/Input";
 import { Recipe, Ingredient, DietaryPreference } from "@/types";
+import { LocalStore } from "@/lib/storage/local-store";
 import { Sparkles, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -45,6 +46,7 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
 
     setIsGenerating(true);
     try {
+      const userPrefs = typeof window !== "undefined" ? LocalStore.getPreferences() : null;
       const res = await fetch("/api/ai/suggest-meal", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -52,7 +54,8 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
           mealType: "dinner",
           day: "monday",
           dietaryPreference: dietaryTag,
-          notes: aiPrompt,
+          notes: aiPrompt.trim(),
+          customApiKey: userPrefs?.geminiApiKey,
         }),
       });
       const data = await res.json();

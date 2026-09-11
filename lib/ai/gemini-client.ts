@@ -1,10 +1,17 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { Recipe, WeeklyMealPlan, MealSlot, DayOfWeek, MealType, DietaryPreference } from "@/types";
 import { INITIAL_RECIPES } from "@/lib/storage/mock-data";
+import { generateSmartRecipeFromPrompt, generateSmartPantryRecipes } from "./smart-recipe-generator";
 
 function getApiKey(customKey?: string): string | null {
   const key = customKey || process.env.GEMINI_API_KEY;
-  if (!key || key === "your-gemini-api-key-here" || key.trim() === "") {
+  if (
+    !key ||
+    key === "your-gemini-api-key-here" ||
+    key === "placeholder-gemini-key" ||
+    key.includes("placeholder") ||
+    key.trim() === ""
+  ) {
     return null;
   }
   return key.trim();
@@ -178,15 +185,8 @@ export async function suggestMealAlternativeWithAI(params: {
   const apiKey = getApiKey(params.customApiKey);
 
   if (!apiKey) {
-    // Pick or alter curated recipe
-    const matches = INITIAL_RECIPES.filter((r) => r.dietaryTags.includes(params.dietaryPreference) || r.dietaryTags.includes("mediterranean"));
-    const selected = matches[Math.floor(Math.random() * matches.length)] || INITIAL_RECIPES[0];
-    return {
-      ...selected,
-      id: `rec-alt-${Date.now()}`,
-      title: `${selected.title} (Suggeriment del Xef)`,
-      source: "ai",
-    };
+    // Generate intelligent customized recipe strictly based on the prompt
+    return generateSmartRecipeFromPrompt(params);
   }
 
   try {
@@ -194,14 +194,22 @@ export async function suggestMealAlternativeWithAI(params: {
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     const prompt = `
-Ets un xef expert. Suggereix una única recepta per a un àpat de tipus "${params.mealType}" per al dia "${params.day}".
-Tot el contingut ha d'estar escrit en CATALÀ.
-Preferència alimentària: ${params.dietaryPreference}.
-Notes especials de l'usuari: ${params.notes || "Una opció saborosa, ràpida i equilibrada"}.
+Ets un xef expert i assistent culinari de precisió.
+Crea una recepta apetitosa, realista i detallada basada ESTRICTAMENT en la següent petició de l'usuari:
+"${params.notes || "Una opció saborosa, ràpida i equilibrada"}"
 
-Respon EXCLUSIVAMENT amb un JSON vàlid estructurat així:
+Context:
+- Tipus d'àpat: "${params.mealType}"
+- Dia de la setmana: "${params.day}"
+- Preferència alimentària: "${params.dietaryPreference}"
+
+IMPORTANT:
+1. Tot el contingut ha d'estar escrit en CATALÀ.
+2. Si l'usuari demana un plat concret (ex: arròs negre, truita de patates, salmó, etc.), la recepta ha de ser EXACTAMENT d'aquest plat.
+3. Quantitats realistes en grams, ml o unitats.
+4. Respon EXCLUSIVAMENT amb un JSON vàlid estructurat exactament així:
 {
-  "title": "Títol de la recepta",
+  "title": "Títol exacte de la recepta",
   "description": "Descripció breu i atractiva",
   "prepTimeMinutes": 10,
   "cookTimeMinutes": 15,
@@ -226,10 +234,15 @@ Categories possibles per als ingredients: "produce", "dairy", "meat", "bakery", 
       generationConfig: { responseMimeType: "application/json" },
     });
 
-    const parsed = JSON.parse(result.response.text());
+    let rawText = result.response.text().trim();
+    if (rawText.startsWith("```")) {
+      rawText = rawText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+    }
+    const parsed = JSON.parse(rawText);
+
     return {
       id: `rec-ai-${Date.now()}`,
-      title: parsed.title,
+      title: parsed.title || params.notes || "Recepta Recomanada",
       description: parsed.description || "Recepta recomanada per la IA",
       prepTimeMinutes: parsed.prepTimeMinutes || 10,
       cookTimeMinutes: parsed.cookTimeMinutes || 15,
@@ -254,9 +267,8 @@ Categories possibles per als ingredients: "produce", "dairy", "meat", "bakery", 
       instructions: parsed.instructions || ["Cuinar i servir calent."],
     };
   } catch (error) {
-    console.error("Meal alternative AI error:", error);
-    const fallback = INITIAL_RECIPES[0];
-    return { ...fallback, id: `rec-fallback-${Date.now()}`, source: "ai" };
+    console.warn("Gemini API call failed or key invalid, using bespoke smart recipe generator:", error);
+    return generateSmartRecipeFromPrompt(params);
   }
 }
 
@@ -268,7 +280,9 @@ export async function suggestPantryRecipesWithAI(params: {
   const apiKey = getApiKey(params.customApiKey);
 
   if (!apiKey || params.pantryItems.length === 0) {
-    return INITIAL_RECIPES.slice(0, 3);
+    return params.pantryItems.length > 0
+      ? generateSmartPantryRecipes(params)
+      : INITIAL_RECIPES.slice(0, 3);
   }
 
   try {
@@ -311,7 +325,12 @@ Respon EXCLUSIVAMENT amb un array JSON de 3 receptes:
       generationConfig: { responseMimeType: "application/json" },
     });
 
-    const parsed = JSON.parse(result.response.text());
+    let rawText = result.response.text().trim();
+    if (rawText.startsWith("```")) {
+      rawText = rawText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+    }
+    const parsed = JSON.parse(rawText);
+
     return parsed.map((item: any, idx: number) => ({
       id: `pantry-rec-${idx}-${Date.now()}`,
       title: item.title,
@@ -339,8 +358,10 @@ Respon EXCLUSIVAMENT amb un array JSON de 3 receptes:
       instructions: item.instructions || ["Preparar i cuinar."],
     }));
   } catch (error) {
-    console.error("Pantry recipes AI error:", error);
-    return INITIAL_RECIPES.slice(0, 3);
+    console.warn("Pantry recipes AI error, using smart pantry generator fallback:", error);
+    return params.pantryItems.length > 0
+      ? generateSmartPantryRecipes(params)
+      : INITIAL_RECIPES.slice(0, 3);
   }
 }
 

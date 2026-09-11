@@ -47,6 +47,7 @@ function LoginFormContent() {
   const [adminEmail, setAdminEmail] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
   const [adminFamilyName, setAdminFamilyName] = useState("");
+  const [adminFamilyCode, setAdminFamilyCode] = useState("");
   const [isAdminLoading, setIsAdminLoading] = useState(false);
 
   const navigateAfterAuth = (defaultPath: string) => {
@@ -81,8 +82,6 @@ function LoginFormContent() {
       toast.success(result.message);
       if (result.session?.role === "superadmin") {
         navigateAfterAuth("/admin");
-      } else if (result.session?.role === "admin" && result.session?.status === "pending") {
-        navigateAfterAuth("/family");
       } else {
         navigateAfterAuth("/planner");
       }
@@ -128,12 +127,13 @@ function LoginFormContent() {
       password: adminPassword,
       fullName: adminFullName,
       familyName: adminFamilyName,
+      familyCode: adminFamilyCode.trim() || undefined,
     });
     setIsAdminLoading(false);
 
     if (result.success) {
       toast.success(result.message);
-      navigateAfterAuth("/family");
+      navigateAfterAuth("/planner");
     } else {
       toast.error(result.message);
     }
@@ -174,7 +174,7 @@ function LoginFormContent() {
                 : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
             }`}
           >
-            Nou Usuari
+            Uneix-te a Família
           </button>
 
           <button
@@ -185,7 +185,7 @@ function LoginFormContent() {
                 : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
             }`}
           >
-            Nou Admin
+            Crea Família
           </button>
         </div>
 
@@ -275,20 +275,32 @@ function LoginFormContent() {
         {/* Tab 2: Nou Usuari amb Codi de Família */}
         {activeTab === "register-user" && (
           <div className="p-6 space-y-4">
+            <div className="text-xs text-zinc-500 dark:text-zinc-400 pb-1">
+              Uneix-te a la teva família per compartir el menú setmanal, el rebost i la llista de la compra.
+            </div>
             <form onSubmit={handleUserSignUpSubmit} className="space-y-4">
               <div>
                 <Input
-                  label="Codi de Família"
-                  placeholder="FAM-XXXX"
+                  label="Codi de Família *"
+                  placeholder="ex. CAS-BAR o FAM-7492"
                   value={userFamilyCode}
                   onChange={(e) => setUserFamilyCode(e.target.value.toUpperCase())}
                   required
                 />
-                <p className="text-[10px] text-zinc-400 mt-1">Codi per a proves: <strong className="text-zinc-600 dark:text-zinc-300 font-mono">FAM-7492</strong></p>
+                <div className="flex items-center justify-between text-[11px] text-zinc-400 mt-1">
+                  <span>Exemples actius: <strong className="text-zinc-600 dark:text-zinc-300 font-mono">CAS-BAR</strong>, <strong className="text-zinc-600 dark:text-zinc-300 font-mono">FAM-7492</strong></span>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("register-admin")}
+                    className="text-primary-600 dark:text-primary-400 hover:underline font-medium"
+                  >
+                    No en tens? Crea'n una
+                  </button>
+                </div>
               </div>
 
               <Input
-                label="Nom Complet"
+                label="Nom Complet *"
                 placeholder="El teu nom"
                 value={userFullName}
                 onChange={(e) => setUserFullName(e.target.value)}
@@ -296,7 +308,7 @@ function LoginFormContent() {
               />
 
               <Input
-                label="Correu Electrònic"
+                label="Correu Electrònic *"
                 type="email"
                 placeholder="el-teu-correu@exemple.cat"
                 value={userEmail}
@@ -305,7 +317,7 @@ function LoginFormContent() {
               />
 
               <Input
-                label="Contrasenya"
+                label="Contrasenya *"
                 type="password"
                 placeholder="••••••••"
                 value={userPassword}
@@ -326,20 +338,31 @@ function LoginFormContent() {
           </div>
         )}
 
-        {/* Tab 3: Nou Admin de Família */}
+        {/* Tab 3: Nou Admin / Crea Família */}
         {activeTab === "register-admin" && (
           <div className="p-6 space-y-4">
+            <div className="text-xs text-zinc-500 dark:text-zinc-400 pb-1">
+              Crea la teva pròpia família per començar a organitzar els àpats i convidar els teus familiars.
+            </div>
             <form onSubmit={handleAdminSignUpSubmit} className="space-y-4">
               <Input
-                label="Nom de la Família"
-                placeholder="ex. Família Garcia"
+                label="Nom de la Família *"
+                placeholder="ex. Família Castanyer, Pis de Gràcia..."
                 value={adminFamilyName}
                 onChange={(e) => setAdminFamilyName(e.target.value)}
                 required
               />
 
               <Input
-                label="Nom de l'Administrador"
+                label="Codi de Família Personalitzat (Opcional)"
+                placeholder="ex. CAS-BAR (o buit per auto-generar)"
+                value={adminFamilyCode}
+                onChange={(e) => setAdminFamilyCode(e.target.value.toUpperCase())}
+                helperText="Codi curt que faran servir els teus familiars per entrar"
+              />
+
+              <Input
+                label="Nom de l'Administrador *"
                 placeholder="El teu nom"
                 value={adminFullName}
                 onChange={(e) => setAdminFullName(e.target.value)}
@@ -347,7 +370,7 @@ function LoginFormContent() {
               />
 
               <Input
-                label="Correu Electrònic"
+                label="Correu Electrònic *"
                 type="email"
                 placeholder="el-teu-correu@exemple.cat"
                 value={adminEmail}
@@ -356,7 +379,7 @@ function LoginFormContent() {
               />
 
               <Input
-                label="Contrasenya"
+                label="Contrasenya *"
                 type="password"
                 placeholder="••••••••"
                 value={adminPassword}
@@ -371,7 +394,7 @@ function LoginFormContent() {
                 className="w-full"
               >
                 <ShieldCheck className="w-4 h-4 mr-2" />
-                Registra la Família
+                Crea la Família i Comença
               </Button>
             </form>
           </div>

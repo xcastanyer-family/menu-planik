@@ -160,22 +160,26 @@ export const LocalStore = {
     };
   },
 
-  registerAdmin(name: string, email: string, _password?: string, familyName?: string): { success: boolean; message: string; family?: Family } {
+  registerAdmin(fullName: string, email: string, password?: string, familyName?: string, customCode?: string): { success: boolean; message: string; family?: Family } {
     const cleanEmail = email.trim().toLowerCase();
-    const all = this.getAllFamilies();
-    const exists = all.some((f) => f.organizerEmail.toLowerCase() === cleanEmail);
-
-    if (exists) {
+    const existing = this.getAllFamilies().some((f) => f.organizerEmail.toLowerCase() === cleanEmail);
+    if (existing) {
       return {
         success: false,
         message: `Ja existeix una família registrada amb el correu ${email}. Inicia sessió o fes servir un altre correu.`,
       };
     }
 
-    const created = this.createFamily(familyName?.trim() || `Família de ${name.trim()}`, name.trim(), cleanEmail, false);
+    const created = this.createFamily(
+      familyName?.trim() || `Família de ${fullName.trim()}`,
+      fullName.trim(),
+      cleanEmail,
+      true,
+      customCode
+    );
     return {
       success: true,
-      message: `Família "${created.name}" creada amb èxit! Està en estat pendent d'aprovació pel Superadministrador.`,
+      message: `Família "${created.name}" creada amb èxit! Benvingut/da a MenuPlanik.`,
       family: created,
     };
   },
@@ -190,8 +194,8 @@ export const LocalStore = {
     };
   },
 
-  signUpAdmin(name: string, email: string, password?: string, familyName?: string): { success: boolean; message: string; session?: UserSession; family?: Family; data?: Family } {
-    const res = this.registerAdmin(name, email, password, familyName);
+  signUpAdmin(name: string, email: string, password?: string, familyName?: string, customCode?: string): { success: boolean; message: string; session?: UserSession; family?: Family; data?: Family } {
+    const res = this.registerAdmin(name, email, password, familyName, customCode);
     return {
       success: res.success,
       message: res.message,
@@ -224,7 +228,18 @@ export const LocalStore = {
         localStorage.setItem(STORAGE_KEYS.ALL_FAMILIES, JSON.stringify(INITIAL_FAMILIES));
         return INITIAL_FAMILIES;
       }
-      return JSON.parse(data);
+      const list: Family[] = JSON.parse(data);
+      let changed = false;
+      for (const initFam of INITIAL_FAMILIES) {
+        if (!list.some((f) => f.code.toUpperCase() === initFam.code.toUpperCase() || f.id === initFam.id)) {
+          list.push(initFam);
+          changed = true;
+        }
+      }
+      if (changed) {
+        localStorage.setItem(STORAGE_KEYS.ALL_FAMILIES, JSON.stringify(list));
+      }
+      return list;
     } catch {
       return INITIAL_FAMILIES;
     }
@@ -314,8 +329,8 @@ export const LocalStore = {
     this.saveAllFamilies(updated);
   },
 
-  createFamily(name: string, organizerName: string, organizerEmail: string, autoApprove: boolean = false): Family {
-    const randomCode = `FAM-${Math.floor(1000 + Math.random() * 9000)}`;
+  createFamily(name: string, organizerName: string, organizerEmail: string, autoApprove: boolean = true, customCode?: string): Family {
+    const familyCode = customCode?.trim().toUpperCase() || `FAM-${Math.floor(1000 + Math.random() * 9000)}`;
     const familyId = `fam-${Date.now()}`;
     const organizerMember: FamilyMember = {
       id: `m-${Date.now()}`,
@@ -330,7 +345,7 @@ export const LocalStore = {
     const newFamily: Family = {
       id: familyId,
       name,
-      code: randomCode,
+      code: familyCode,
       organizerName,
       organizerEmail,
       status: autoApprove ? "approved" : "pending",
@@ -349,7 +364,8 @@ export const LocalStore = {
       name: organizerName,
       email: organizerEmail,
       role: "admin",
-      familyCode: randomCode,
+      status: "active",
+      familyCode,
       familyName: name,
       isAuthenticated: true,
     });
@@ -359,27 +375,33 @@ export const LocalStore = {
 
   joinFamilyWithCode(code: string, name: string, email: string): { success: boolean; message: string; family?: Family } {
     const cleanCode = code.trim().toUpperCase();
-    const all = this.getAllFamilies();
-    const targetFamily = all.find((f) => f.code.toUpperCase() === cleanCode);
+    let all = this.getAllFamilies();
+    let targetFamily = all.find((f) => f.code.toUpperCase() === cleanCode);
+
+    if (!targetFamily) {
+      const fallbackInit = INITIAL_FAMILIES.find((f) => f.code.toUpperCase() === cleanCode);
+      if (fallbackInit) {
+        targetFamily = fallbackInit;
+        this.saveFamily(targetFamily);
+      }
+    }
 
     if (!targetFamily) {
       return {
         success: false,
-        message: `El codi "${cleanCode}" no correspon a cap família activa. Comprova-ho amb l'organitzador.`,
+        message: `El codi "${cleanCode}" no correspon a cap família activa. Comprova-ho amb l'organitzador o registra una nova família.`,
       };
     }
 
     if (targetFamily.status === "pending") {
-      return {
-        success: false,
-        message: `La família "${targetFamily.name}" està pendent d'aprovació per part del Superadministrador. No és possible accedir-hi fins que sigui validada.`,
-      };
+      targetFamily.status = "approved";
+      this.saveFamily(targetFamily);
     }
 
     if (targetFamily.status === "rejected") {
       return {
         success: false,
-        message: `La família "${targetFamily.name}" ha estat rebutjada o desactivada pel Superadministrador.`,
+        message: `La família "${targetFamily.name}" ha estat desactivada.`,
       };
     }
 
@@ -403,16 +425,17 @@ export const LocalStore = {
       this.saveFamily(updatedFamily);
     }
 
-    // Set user session as member (Passwordless, isAuthenticated = false)
+    // Set user session as member (Authenticated)
     this.saveCurrentSession({
       memberId: member.id,
       familyId: targetFamily.id,
       name: member.name,
       email: member.email,
       role: member.role,
+      status: "active",
       familyCode: targetFamily.code,
       familyName: targetFamily.name,
-      isAuthenticated: false,
+      isAuthenticated: true,
     });
 
     return {

@@ -14,6 +14,7 @@ export interface SignUpAdminParams {
   password?: string;
   fullName: string;
   familyName: string;
+  familyCode?: string;
 }
 
 export interface SignInParams {
@@ -33,27 +34,55 @@ export const SupabaseAuthService = {
    * Registers a new User (Household Member) and links them to a family via Family Code
    */
   async signUpUser(params: SignUpUserParams): Promise<AuthResponse> {
-    const supabase = createClient();
     const cleanEmail = params.email.trim().toLowerCase();
     const cleanCode = params.familyCode.trim().toUpperCase();
 
-    // 1. If Supabase is connected, execute Supabase Auth
-    if (supabase) {
-      try {
-        // Verify that the family code exists in Supabase
-        const { data: family, error: famError } = await supabase
-          .from("families")
-          .select("*")
-          .eq("code", cleanCode)
-          .maybeSingle();
-
-        if (famError || !family) {
+    // 1. Verify family via server API (bypasses RLS for unauthenticated lookup)
+    let family: any = null;
+    try {
+      const res = await fetch(`/api/auth/family?code=${encodeURIComponent(cleanCode)}`);
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.family) {
+          family = json.family;
+        } else {
           return {
             success: false,
-            message: `El codi "${cleanCode}" no correspon a cap família activa a Supabase. Comprova el codi amb l'administrador de la teva llar.`,
+            message: json.message || `El codi "${cleanCode}" no correspon a cap família activa. Comprova-ho amb l'organitzador de la teva llar o registra una nova família.`,
           };
         }
+      }
+    } catch (err) {
+      console.warn("Could not verify family via API, checking local fallback:", err);
+    }
 
+    // 2. Local fallback if API didn't return a family
+    if (!family) {
+      const localFamilies = LocalStore.getAllFamilies();
+      family = localFamilies.find((f) => f.code.toUpperCase() === cleanCode);
+      if (!family) {
+        return {
+          success: false,
+          message: `El codi "${cleanCode}" no correspon a cap família activa. Comprova el codi amb l'administrador de la teva llar o registra una nova família.`,
+        };
+      }
+    }
+
+    // Save/sync family to LocalStore
+    LocalStore.saveFamily({
+      id: family.id,
+      name: family.name,
+      code: family.code,
+      organizerName: family.adminName || family.organizerName || "Admin",
+      organizerEmail: family.adminEmail || family.organizerEmail || "",
+      status: "approved",
+      createdAt: new Date().toISOString(),
+      members: family.members || [],
+    });
+
+    const supabase = createClient();
+    if (supabase) {
+      try {
         const { data, error } = await supabase.auth.signUp({
           email: cleanEmail,
           password: params.password || "Password123!",
@@ -67,6 +96,13 @@ export const SupabaseAuthService = {
         });
 
         if (error) {
+          // If already registered, return friendly message
+          if (error.message.includes("User already registered")) {
+            return {
+              success: false,
+              message: "Aquest correu ja està registrat. Si ja tens compte, inicia sessió.",
+            };
+          }
           return { success: false, message: `Error de registre Supabase: ${error.message}` };
         }
 
@@ -78,7 +114,7 @@ export const SupabaseAuthService = {
             name: params.fullName.trim(),
             email: cleanEmail,
             role: "user",
-            status: family.status || "active",
+            status: "active",
             familyCode: family.code,
             familyName: family.name,
             isAuthenticated: true,
@@ -95,16 +131,16 @@ export const SupabaseAuthService = {
       }
     }
 
-    // 2. Fallback to LocalStore if Supabase not configured
     return LocalStore.signUpUser(params.fullName.trim(), cleanEmail, params.password || "", cleanCode);
   },
 
   /**
-   * Registers a new Family Admin (Organizer) in 'pending' status awaiting Superadmin validation
+   * Registers a new Family Admin (Organizer) with approved status
    */
   async signUpAdmin(params: SignUpAdminParams): Promise<AuthResponse<Family>> {
     const supabase = createClient();
     const cleanEmail = params.email.trim().toLowerCase();
+    const cleanCustomCode = params.familyCode?.trim().toUpperCase();
 
     if (supabase) {
       try {
@@ -116,38 +152,75 @@ export const SupabaseAuthService = {
               role: "admin",
               full_name: params.fullName.trim(),
               family_name: params.familyName.trim(),
+              family_code: cleanCustomCode || undefined,
             },
           },
         });
 
         if (error) {
+          if (error.message.includes("User already registered")) {
+            return {
+              success: false,
+              message: "Aquest correu ja està registrat. Si ja tens compte, inicia sessió.",
+            };
+          }
           return { success: false, message: `Error de registre Supabase: ${error.message}` };
         }
 
         if (data.user) {
-          // Fetch family created by trigger
-          const { data: family } = await supabase
-            .from("families")
-            .select("*")
-            .eq("admin_id", data.user.id)
-            .maybeSingle();
+          // Ensure family is created/approved via server API
+          let familyData: any = null;
+          try {
+            const famRes = await fetch("/api/auth/family", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                name: params.familyName.trim(),
+                adminName: params.fullName.trim(),
+                adminEmail: cleanEmail,
+                adminId: data.user.id,
+                code: cleanCustomCode,
+              }),
+            });
+            if (famRes.ok) {
+              const famJson = await famRes.json();
+              if (famJson.success && famJson.family) {
+                familyData = famJson.family;
+              }
+            }
+          } catch (apiErr) {
+            console.warn("Could not create family via API:", apiErr);
+          }
+
+          const resolvedCode = familyData?.code || cleanCustomCode || `FAM-${Math.floor(1000 + Math.random() * 9000)}`;
+          const resolvedFamId = familyData?.id || `fam-${Date.now()}`;
 
           const session: UserSession = {
             userId: data.user.id,
             memberId: data.user.id,
-            familyId: family?.id || "",
+            familyId: resolvedFamId,
             name: params.fullName.trim(),
             email: cleanEmail,
             role: "admin",
-            status: "pending",
-            familyCode: family?.code || "",
-            familyName: family?.name || params.familyName.trim(),
+            status: "active",
+            familyCode: resolvedCode,
+            familyName: params.familyName.trim(),
             isAuthenticated: true,
           };
           LocalStore.saveCurrentSession(session);
+
+          // Also save family to LocalStore
+          LocalStore.createFamily(
+            params.familyName.trim(),
+            params.fullName.trim(),
+            cleanEmail,
+            true,
+            resolvedCode
+          );
+
           return {
             success: true,
-            message: `Família "${session.familyName}" registrada amb èxit! El teu compte està pendent de validació.`,
+            message: `Família "${session.familyName}" creada amb èxit! Benvingut/da a MenuPlanik.`,
             session,
           };
         }
@@ -156,7 +229,7 @@ export const SupabaseAuthService = {
       }
     }
 
-    return LocalStore.signUpAdmin(params.fullName.trim(), cleanEmail, params.password || "", params.familyName.trim());
+    return LocalStore.signUpAdmin(params.fullName.trim(), cleanEmail, params.password || "", params.familyName.trim(), cleanCustomCode);
   },
 
   /**
@@ -209,6 +282,19 @@ export const SupabaseAuthService = {
             familyName: family?.name || data.user.user_metadata?.family_name || "",
             isAuthenticated: true,
           };
+
+          if (family) {
+            LocalStore.saveFamily({
+              id: family.id,
+              name: family.name,
+              code: family.code,
+              organizerName: family.admin_name || family.name,
+              organizerEmail: family.admin_email || "",
+              status: "approved",
+              createdAt: family.created_at || new Date().toISOString(),
+              members: [],
+            });
+          }
 
           LocalStore.saveCurrentSession(session);
           return {

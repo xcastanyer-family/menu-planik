@@ -471,6 +471,28 @@ export const DEFAULT_FAMILY: Family = {
 export const INITIAL_FAMILIES: Family[] = [
   DEFAULT_FAMILY,
   {
+    id: "fam-cas-bar",
+    name: "Família Castanyer",
+    code: "CAS-BAR",
+    organizerName: "Xavi",
+    organizerEmail: "xcastanyer@gmail.com",
+    adminId: "usr-admin-xavi",
+    status: "approved",
+    createdAt: "2026-09-11T12:00:00.000Z",
+    members: [
+      {
+        id: "m-cas-1",
+        familyId: "fam-cas-bar",
+        userId: "usr-admin-xavi",
+        name: "Xavi",
+        email: "xcastanyer@gmail.com",
+        role: "admin",
+        joinedAt: "2026-09-11T12:00:00.000Z",
+        color: "#16a34a",
+      },
+    ],
+  },
+  {
     id: "fam-pending-1",
     name: "Família Costa",
     code: "FAM-3912",

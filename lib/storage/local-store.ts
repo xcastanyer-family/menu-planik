@@ -1,5 +1,4 @@
 import { Recipe, WeeklyMealPlan, PantryItem, GroceryItem, UserPreferences, Family, FamilyMember, UserSession } from "@/types";
-import { setSessionCookie, clearSessionCookie } from "@/lib/auth/session-cookie";
 import {
   INITIAL_RECIPES,
   INITIAL_MEAL_PLAN,
@@ -13,15 +12,14 @@ import {
 } from "./mock-data";
 
 const STORAGE_KEYS = {
-  RECIPES: "menuplanik_recipes_ca_v3",
-  MEAL_PLAN: "menuplanik_meal_plan_ca_v3",
-  PANTRY: "menuplanik_pantry_ca_v3",
-  GROCERIES: "menuplanik_groceries_ca_v3",
-  PREFERENCES: "menuplanik_preferences_ca_v3",
-  FAMILY: "menuplanik_family_ca_v3",
-  ALL_FAMILIES: "menuplanik_all_families_ca_v3",
-  SESSION: "menuplanik_session_ca_v3",
-  CREDENTIALS: "menuplanik_creds_ca_v3",
+  RECIPES: "menuplanik_recipes_ca_v2",
+  MEAL_PLAN: "menuplanik_meal_plan_ca_v2",
+  PANTRY: "menuplanik_pantry_ca_v2",
+  GROCERIES: "menuplanik_groceries_ca_v2",
+  PREFERENCES: "menuplanik_preferences_ca_v2",
+  FAMILY: "menuplanik_family_ca_v2",
+  ALL_FAMILIES: "menuplanik_all_families_ca_v2",
+  SESSION: "menuplanik_session_ca_v2",
 };
 
 export const LocalStore = {
@@ -32,12 +30,9 @@ export const LocalStore = {
       const data = localStorage.getItem(STORAGE_KEYS.SESSION);
       if (!data) {
         localStorage.setItem(STORAGE_KEYS.SESSION, JSON.stringify(DEFAULT_SESSION));
-        setSessionCookie(DEFAULT_SESSION);
         return DEFAULT_SESSION;
       }
-      const session: UserSession = JSON.parse(data);
-      setSessionCookie(session);
-      return session;
+      return JSON.parse(data);
     } catch {
       return DEFAULT_SESSION;
     }
@@ -47,58 +42,40 @@ export const LocalStore = {
     if (typeof window === "undefined") return;
     if (session) {
       localStorage.setItem(STORAGE_KEYS.SESSION, JSON.stringify(session));
-      setSessionCookie(session);
     } else {
       localStorage.removeItem(STORAGE_KEYS.SESSION);
-      clearSessionCookie();
     }
     window.dispatchEvent(new Event("menuplanik_session_changed"));
   },
 
-  getStoredPassword(email: string): string | null {
-    if (typeof window === "undefined") return null;
-    try {
-      const creds = JSON.parse(localStorage.getItem(STORAGE_KEYS.CREDENTIALS) || "{}");
-      return creds[email.trim().toLowerCase()] || null;
-    } catch {
-      return null;
-    }
+  switchToSuperuser() {
+    this.saveCurrentSession({ ...SUPERUSER_SESSION, isAuthenticated: true });
   },
 
-  saveUserPassword(email: string, password: string) {
-    if (typeof window === "undefined" || !password) return;
-    try {
-      const creds = JSON.parse(localStorage.getItem(STORAGE_KEYS.CREDENTIALS) || "{}");
-      creds[email.trim().toLowerCase()] = password;
-      localStorage.setItem(STORAGE_KEYS.CREDENTIALS, JSON.stringify(creds));
-    } catch (e) {
-      console.error("Error saving password:", e);
-    }
+  switchToOrganizer() {
+    this.saveCurrentSession({ ...DEFAULT_SESSION, isAuthenticated: true });
   },
 
-  // 3-Tier Auth System
-  signIn(email: string, password?: string): { success: boolean; message: string; session?: UserSession } {
+  switchToMember() {
+    const memberSession: UserSession = {
+      memberId: "m-2",
+      familyId: "fam-main",
+      name: "Júlia",
+      email: "julia@menuplanik.cat",
+      role: "user",
+      familyCode: "FAM-7492",
+      familyName: "Família MenúPlanik",
+      isAuthenticated: false,
+    };
+    this.saveCurrentSession(memberSession);
+  },
+
+  // --- Auth for Superadmin & Family Organizers ---
+  loginAdmin(email: string, _password?: string): { success: boolean; message: string; session?: UserSession } {
     const cleanEmail = email.trim().toLowerCase();
 
-    if (!password || password.trim() === "") {
-      return {
-        success: false,
-        message: "Has d'introduir la contrasenya per accedir.",
-      };
-    }
-
-    const inputPassword = password.trim();
-
-    // 1. Superadmin check
+    // 1. Check if Superadmin
     if (cleanEmail === "admin@menuplanik.cat" || cleanEmail === "superadmin@menuplanik.cat") {
-      const expectedPass = this.getStoredPassword(cleanEmail) || "superadmin123";
-      if (inputPassword !== expectedPass && inputPassword !== "superadmin123") {
-        return {
-          success: false,
-          message: "Contrasenya incorrecta per al compte de Superadministrador.",
-        };
-      }
-
       const superSession: UserSession = {
         ...SUPERUSER_SESSION,
         isAuthenticated: true,
@@ -106,151 +83,81 @@ export const LocalStore = {
       this.saveCurrentSession(superSession);
       return {
         success: true,
-        message: "Sessió de Superadministrador iniciada.",
+        message: "Sessió iniciada correctament com a Superadministrador.",
         session: superSession,
       };
     }
 
-    // 2. Check if Admin of a family
-    const allFamilies = this.getAllFamilies();
-    const adminFamily = allFamilies.find((f) => f.organizerEmail.toLowerCase() === cleanEmail);
+    // 2. Check if Organizer of any family
+    const all = this.getAllFamilies();
+    const targetFamily = all.find((f) => f.organizerEmail.toLowerCase() === cleanEmail);
 
-    if (adminFamily) {
-      const expectedPass = this.getStoredPassword(cleanEmail) || "admin123";
-      if (inputPassword !== expectedPass && inputPassword !== "admin123") {
-        return {
-          success: false,
-          message: "Contrasenya d'administrador de família incorrecta.",
-        };
-      }
-
-      const adminMember = adminFamily.members.find((m) => m.role === "admin") || adminFamily.members[0];
-      const adminSession: UserSession = {
-        memberId: adminMember?.id || `m-${Date.now()}`,
-        familyId: adminFamily.id,
-        name: adminFamily.organizerName,
-        email: adminFamily.organizerEmail,
+    if (targetFamily) {
+      const organizerMember = targetFamily.members.find((m) => m.role === "admin") || targetFamily.members[0];
+      const organizerSession: UserSession = {
+        memberId: organizerMember?.id || `m-${Date.now()}`,
+        familyId: targetFamily.id,
+        name: targetFamily.organizerName,
+        email: targetFamily.organizerEmail,
         role: "admin",
-        status: adminFamily.status,
-        familyCode: adminFamily.code,
-        familyName: adminFamily.name,
+        familyCode: targetFamily.code,
+        familyName: targetFamily.name,
         isAuthenticated: true,
       };
-      this.saveCurrentSession(adminSession);
+      this.saveCurrentSession(organizerSession);
       return {
         success: true,
-        message: `Benvingut/da ${adminFamily.organizerName}! Sessió d'administrador de la ${adminFamily.name} iniciada.`,
-        session: adminSession,
+        message: `Benvingut/da ${targetFamily.organizerName}! Sessió d'administrador de la ${targetFamily.name} iniciada.`,
+        session: organizerSession,
       };
     }
 
-    // 3. Check regular household user
-    for (const fam of allFamilies) {
+    return {
+      success: false,
+      message: `No s'ha trobat cap compte d'administrador amb el correu "${email}". Si vols crear una nova família, fes servir la pestanya "Registra nova família".`,
+    };
+  },
+
+  signIn(email: string, password?: string): { success: boolean; message: string; session?: UserSession } {
+    const cleanEmail = email.trim().toLowerCase();
+
+    // 1. Check if admin/superadmin
+    const adminRes = this.loginAdmin(cleanEmail, password);
+    if (adminRes.success) {
+      return adminRes;
+    }
+
+    // 2. Check if member of any family
+    const all = this.getAllFamilies();
+    for (const fam of all) {
       const member = fam.members.find((m) => m.email.toLowerCase() === cleanEmail);
       if (member) {
-        const expectedPass = this.getStoredPassword(cleanEmail) || "user123";
-        if (inputPassword !== expectedPass && inputPassword !== "user123") {
-          return {
-            success: false,
-            message: "Contrasenya d'usuari incorrecta.",
-          };
-        }
-
-        const userSession: UserSession = {
+        const session: UserSession = {
           memberId: member.id,
           familyId: fam.id,
           name: member.name,
           email: member.email,
-          role: "user",
-          status: fam.status,
+          role: member.role,
           familyCode: fam.code,
           familyName: fam.name,
           isAuthenticated: true,
         };
-        this.saveCurrentSession(userSession);
+        this.saveCurrentSession(session);
         return {
           success: true,
-          message: `Benvingut/da ${member.name}! Has entrat a la ${fam.name}.`,
-          session: userSession,
+          message: `Benvingut/da ${member.name}!`,
+          session,
         };
       }
     }
 
     return {
       success: false,
-      message: `No s'ha trobat cap usuari registrat amb el correu "${email}". Si no tens compte, registra't amb el teu codi de família.`,
+      message: `No s'ha trobat cap compte associat al correu "${email}". Si és una nova família, registra-la primer.`,
     };
   },
 
-  // Backward-compatible alias
-  loginAdmin(email: string, password?: string) {
-    return this.signIn(email, password);
-  },
-
-  signUpUser(name: string, email: string, password: string, familyCode: string): { success: boolean; message: string; session?: UserSession } {
-    const cleanEmail = email.trim().toLowerCase();
-    const cleanCode = familyCode.trim().toUpperCase();
-    const all = this.getAllFamilies();
-    const targetFamily = all.find((f) => f.code.toUpperCase() === cleanCode);
-
-    if (!targetFamily) {
-      return {
-        success: false,
-        message: `El codi "${cleanCode}" no correspon a cap família activa. Demana el codi a l'administrador de la teva llar.`,
-      };
-    }
-
-    if (targetFamily.status === "rejected") {
-      return {
-        success: false,
-        message: `La família "${targetFamily.name}" està desactivada pel Superadministrador.`,
-      };
-    }
-
-    if (password) {
-      this.saveUserPassword(cleanEmail, password);
-    }
-
-    let member = targetFamily.members.find((m) => m.email.toLowerCase() === cleanEmail);
-    let updatedMembers = [...targetFamily.members];
-
-    if (!member) {
-      const colors = ["#0284c7", "#8b5cf6", "#ec4899", "#f59e0b", "#10b981"];
-      member = {
-        id: `m-${Date.now()}`,
-        familyId: targetFamily.id,
-        name: name.trim(),
-        email: cleanEmail,
-        role: "user",
-        joinedAt: new Date().toISOString(),
-        color: colors[Math.floor(Math.random() * colors.length)],
-      };
-      updatedMembers.push(member);
-      const updatedFamily = { ...targetFamily, members: updatedMembers };
-      this.saveFamily(updatedFamily);
-    }
-
-    const session: UserSession = {
-      memberId: member.id,
-      familyId: targetFamily.id,
-      name: member.name,
-      email: member.email,
-      role: "user",
-      status: targetFamily.status,
-      familyCode: targetFamily.code,
-      familyName: targetFamily.name,
-      isAuthenticated: true,
-    };
-    this.saveCurrentSession(session);
-
-    return {
-      success: true,
-      message: `Compte creat correctament! T'has unit a la ${targetFamily.name}.`,
-      session,
-    };
-  },
-
-  signUpAdmin(name: string, email: string, password: string, familyName: string): { success: boolean; message: string; family?: Family; session?: UserSession } {
+  registerAdmin(name: string, email: string, _password?: string, familyName?: string): { success: boolean; message: string; family?: Family } {
     const cleanEmail = email.trim().toLowerCase();
     const all = this.getAllFamilies();
     const exists = all.some((f) => f.organizerEmail.toLowerCase() === cleanEmail);
@@ -258,39 +165,37 @@ export const LocalStore = {
     if (exists) {
       return {
         success: false,
-        message: `Ja existeix una família registrada amb el correu ${email}. Inicia sessió directament.`,
+        message: `Ja existeix una família registrada amb el correu ${email}. Inicia sessió o fes servir un altre correu.`,
       };
     }
 
-    if (password) {
-      this.saveUserPassword(cleanEmail, password);
-    }
-
     const created = this.createFamily(familyName?.trim() || `Família de ${name.trim()}`, name.trim(), cleanEmail, false);
-    const session: UserSession = {
-      memberId: created.members[0].id,
-      familyId: created.id,
-      name: name.trim(),
-      email: cleanEmail,
-      role: "admin",
-      status: "pending",
-      familyCode: created.code,
-      familyName: created.name,
-      isAuthenticated: true,
-    };
-    this.saveCurrentSession(session);
-
     return {
       success: true,
-      message: `Família "${created.name}" registrada amb èxit! El teu compte d'Admin està pendent de validació pel Superadministrador.`,
+      message: `Família "${created.name}" creada amb èxit! Està en estat pendent d'aprovació pel Superadministrador.`,
       family: created,
-      session,
     };
   },
 
-  // Backward-compatible alias
-  registerAdmin(name: string, email: string, password?: string, familyName?: string) {
-    return this.signUpAdmin(name, email, password || "", familyName || "");
+  signUpUser(name: string, email: string, _password?: string, familyCode?: string): { success: boolean; message: string; session?: UserSession; family?: Family } {
+    const res = this.joinFamilyWithCode(familyCode || "", name, email);
+    return {
+      success: res.success,
+      message: res.message,
+      session: this.getCurrentSession(),
+      family: res.family,
+    };
+  },
+
+  signUpAdmin(name: string, email: string, password?: string, familyName?: string): { success: boolean; message: string; session?: UserSession; family?: Family; data?: Family } {
+    const res = this.registerAdmin(name, email, password, familyName);
+    return {
+      success: res.success,
+      message: res.message,
+      session: this.getCurrentSession(),
+      family: res.family,
+      data: res.family,
+    };
   },
 
   logout() {
@@ -332,7 +237,7 @@ export const LocalStore = {
     return this.getAllFamilies().filter((f) => f.status === "pending");
   },
 
-  approveFamily(familyId: string): { success: boolean; message: string } {
+  approveFamily(familyId: string) {
     const all = this.getAllFamilies();
     const updated = all.map((f) => {
       if (f.id === familyId) {
@@ -347,10 +252,9 @@ export const LocalStore = {
       return f;
     });
     this.saveAllFamilies(updated);
-    return { success: true, message: "Família aprovada correctament." };
   },
 
-  rejectFamily(familyId: string, reason?: string): { success: boolean; message: string } {
+  rejectFamily(familyId: string, reason?: string) {
     const all = this.getAllFamilies();
     const updated = all.map((f) => {
       if (f.id === familyId) {
@@ -363,30 +267,26 @@ export const LocalStore = {
       return f;
     });
     this.saveAllFamilies(updated);
-    return { success: true, message: "Família rebutjada." };
   },
 
   deleteFamily(familyId: string): { success: boolean; message: string } {
     const all = this.getAllFamilies();
-    const updated = all.filter((f) => f.id !== familyId);
-    this.saveAllFamilies(updated);
+    const filtered = all.filter((f) => f.id !== familyId);
+    this.saveAllFamilies(filtered);
 
-    // Also remove recipes belonging to this family
-    const allRecipes = this.getAllRecipesRaw();
-    const updatedRecipes = allRecipes.filter((r) => r.familyId !== familyId);
-    this.saveRecipes(updatedRecipes);
-
-    // If current user belonged to this family, logout
-    const curr = this.getCurrentSession();
-    if (curr.familyId === familyId) {
+    // If active session belongs to this family, reset session
+    const session = this.getCurrentSession();
+    if (session && session.familyId === familyId) {
       this.logout();
     }
     return { success: true, message: "Família eliminada correctament." };
   },
 
-  deleteSuperadminAccount(): { success: boolean; message: string } {
+  deleteSuperadminAccount() {
     this.logout();
-    return { success: true, message: "Compte de Superadministrador eliminat." };
+    if (typeof window !== "undefined") {
+      localStorage.removeItem(STORAGE_KEYS.SESSION);
+    }
   },
 
   // --- Active Family Management for Normal Users ---
@@ -560,15 +460,17 @@ export const LocalStore = {
     const all = this.getAllRecipesRaw();
     const session = this.getCurrentSession();
 
-    if (forSuperuser || session?.role === "superadmin") {
+    if (forSuperuser || session?.role === "superadmin" || (session?.role as string) === "superuser") {
       return all;
     }
 
-    // Strict privacy: regular families only see approved public recipes OR their own family recipes
+    // Strict privacy: regular families only see approved public recipes OR their own family/authored recipes
     return all.filter((r) => {
       if (r.moderationStatus === "approved_public" || r.isPublic) return true;
       if (session?.familyId && r.familyId === session.familyId) return true;
+      if (session?.name && r.authorName === session.name) return true;
       if (r.source === "curated") return true;
+      if (r.source === "custom" && !r.familyId) return true;
       return false;
     });
   },
@@ -596,6 +498,20 @@ export const LocalStore = {
 
     const list = this.getAllRecipesRaw();
     const updated = [recipeWithMeta, ...list.filter((r) => r.id !== recipeWithMeta.id)];
+    this.saveRecipes(updated);
+    return this.getRecipes();
+  },
+
+  updateRecipe(recipe: Recipe) {
+    const list = this.getAllRecipesRaw();
+    const updated = list.map((r) => (r.id === recipe.id ? { ...r, ...recipe } : r));
+    this.saveRecipes(updated);
+    return this.getRecipes();
+  },
+
+  deleteRecipe(recipeId: string) {
+    const list = this.getAllRecipesRaw();
+    const updated = list.filter((r) => r.id !== recipeId);
     this.saveRecipes(updated);
     return this.getRecipes();
   },

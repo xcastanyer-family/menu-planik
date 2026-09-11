@@ -43,6 +43,18 @@ export default function RecipesPage() {
     setRecipes(updated);
   };
 
+  const handleRecipeUpdated = async (updatedRecipe: Recipe) => {
+    const updated = await SupabaseRecipeService.updateRecipe(updatedRecipe);
+    setRecipes(updated);
+    setSelectedRecipe(updatedRecipe);
+  };
+
+  const handleRecipeDeleted = async (recipeId: string) => {
+    const updated = await SupabaseRecipeService.deleteRecipe(recipeId);
+    setRecipes(updated);
+    setSelectedRecipe(null);
+  };
+
   const filterTags = [
     { id: "all", label: "Totes les Receptes" },
     { id: "Primers", label: "🍝 Primers" },
@@ -169,6 +181,8 @@ export default function RecipesPage() {
         recipe={selectedRecipe}
         isOpen={!!selectedRecipe}
         onClose={() => setSelectedRecipe(null)}
+        onRecipeUpdated={handleRecipeUpdated}
+        onRecipeDeleted={handleRecipeDeleted}
         onStartCooking={(recipe) => {
           setSelectedRecipe(null);
           setCookingRecipe(recipe);

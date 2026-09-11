@@ -259,7 +259,8 @@ export const SupabaseAuthService = {
         console.warn("Supabase approve error:", err);
       }
     }
-    return LocalStore.approveFamily(familyId);
+    LocalStore.approveFamily(familyId);
+    return { success: true, message: "Família aprovada correctament." };
   },
 
   /**
@@ -277,7 +278,8 @@ export const SupabaseAuthService = {
         console.warn("Supabase reject error:", err);
       }
     }
-    return LocalStore.rejectFamily(familyId, reason);
+    LocalStore.rejectFamily(familyId, reason);
+    return { success: true, message: "Família rebutjada." };
   },
 
   /**

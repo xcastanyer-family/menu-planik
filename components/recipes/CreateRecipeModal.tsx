@@ -11,7 +11,7 @@ import { toast } from "sonner";
 interface CreateRecipeModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onRecipeCreated: (recipe: Recipe) => void;
+  onRecipeCreated: (recipe: Recipe) => Promise<void> | void;
 }
 
 export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
@@ -37,6 +37,8 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
   ]);
   const [instructionsText, setInstructionsText] = useState("");
 
+  const [isSaving, setIsSaving] = useState(false);
+
   const handleAiGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!aiPrompt.trim()) return;
@@ -60,12 +62,13 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
           moderationStatus: requestPublicModeration ? "pending_review" : "private",
           isPublic: false,
         };
-        onRecipeCreated(recipeToCreate);
+        await onRecipeCreated(recipeToCreate);
         if (requestPublicModeration) {
           toast.info(`Nova recepta "${data.recipe.title}" creada i enviada a la cua de moderació del Superadministrador.`);
         } else {
           toast.success(`Nova recepta creada amb IA: ${data.recipe.title}!`);
         }
+        setAiPrompt("");
         onClose();
       } else {
         toast.error("Error durant la creació de la recepta.");
@@ -96,7 +99,7 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
     });
   };
 
-  const handleManualSubmit = (e: React.FormEvent) => {
+  const handleManualSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) {
       toast.error("Introdueix un títol per a la recepta");
@@ -112,34 +115,47 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
 
     const newRecipe: Recipe = {
       id: `custom-rec-${Date.now()}`,
-      title,
-      description,
-      prepTimeMinutes: Number(prepTime),
-      cookTimeMinutes: Number(cookTime),
-      servings: Number(servings),
-      calories: Number(calories),
+      title: title.trim(),
+      description: description.trim(),
+      prepTimeMinutes: Number(prepTime) || 10,
+      cookTimeMinutes: Number(cookTime) || 15,
+      servings: Number(servings) || 2,
+      calories: Number(calories) || 450,
       nutrition: {
-        calories: Number(calories),
-        protein: Math.round(Number(calories) * 0.05),
-        carbs: Math.round(Number(calories) * 0.1),
-        fat: Math.round(Number(calories) * 0.04),
+        calories: Number(calories) || 450,
+        protein: Math.round((Number(calories) || 450) * 0.05),
+        carbs: Math.round((Number(calories) || 450) * 0.1),
+        fat: Math.round((Number(calories) || 450) * 0.04),
       },
       tags: ["Personalitzada"],
       dietaryTags: [dietaryTag],
       source: "custom",
       moderationStatus: requestPublicModeration ? "pending_review" : "private",
       isPublic: false,
-      ingredients: validIngredients,
+      ingredients: validIngredients.length > 0 ? validIngredients : [
+        { id: "1", name: "Ingredients variats", amount: 1, unit: "unitat", category: "other" }
+      ],
       instructions: steps.length > 0 ? steps : ["Preparar i cuinar segons preferència."],
     };
 
-    onRecipeCreated(newRecipe);
-    if (requestPublicModeration) {
-      toast.info("Recepta desada i enviada a la cua de moderació del Superadministrador.");
-    } else {
-      toast.success("Recepta desada al teu receptari privat!");
+    setIsSaving(true);
+    try {
+      await onRecipeCreated(newRecipe);
+      if (requestPublicModeration) {
+        toast.info("Recepta desada i enviada a la cua de moderació del Superadministrador.");
+      } else {
+        toast.success("Recepta desada al teu receptari!");
+      }
+      setTitle("");
+      setDescription("");
+      setInstructionsText("");
+      setIngredients([{ id: "1", name: "", amount: 100, unit: "g", category: "produce" }]);
+      onClose();
+    } catch {
+      toast.error("Error en desar la recepta.");
+    } finally {
+      setIsSaving(false);
     }
-    onClose();
   };
 
   return (
@@ -356,7 +372,7 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
               <Button type="button" variant="outline" onClick={onClose}>
                 Cancel·la
               </Button>
-              <Button type="submit" variant="primary">
+              <Button type="submit" variant="primary" isLoading={isSaving}>
                 Desa Recepta
               </Button>
             </div>

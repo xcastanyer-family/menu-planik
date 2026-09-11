@@ -45,7 +45,7 @@ export const SupabaseRecipeService = {
       if (res.ok) {
         const json = await res.json();
         if (json.success && json.recipe) {
-          LocalStore.addRecipe(json.recipe);
+          LocalStore.replaceRecipe(recipeWithMeta.id, json.recipe);
         }
       }
     } catch (err) {

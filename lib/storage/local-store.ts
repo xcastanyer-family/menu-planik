@@ -453,10 +453,37 @@ export const LocalStore = {
         localStorage.setItem(STORAGE_KEYS.RECIPES, JSON.stringify(INITIAL_RECIPES));
         return INITIAL_RECIPES;
       }
-      return JSON.parse(data);
+      const parsed: Recipe[] = JSON.parse(data);
+      const deduplicated = this.deduplicateRecipes(parsed);
+      if (deduplicated.length !== parsed.length) {
+        localStorage.setItem(STORAGE_KEYS.RECIPES, JSON.stringify(deduplicated));
+      }
+      return deduplicated;
     } catch {
       return INITIAL_RECIPES;
     }
+  },
+
+  deduplicateRecipes(recipes: Recipe[]): Recipe[] {
+    const seen = new Map<string, Recipe>();
+
+    for (const r of recipes) {
+      // Key by normalized title and author
+      const key = `${r.title.trim().toLowerCase()}|${(r.authorName || "").trim().toLowerCase()}`;
+      const existing = seen.get(key);
+      if (!existing) {
+        seen.set(key, r);
+      } else {
+        // If current has a UUID and existing has a temp custom-rec ID, prefer the UUID one
+        const isCurrentUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(r.id);
+        const isExistingTemp = existing.id.startsWith("custom-rec-");
+        if (isCurrentUuid || isExistingTemp) {
+          seen.set(key, r);
+        }
+      }
+    }
+
+    return Array.from(seen.values());
   },
 
   getRecipes(forSuperuser?: boolean): Recipe[] {
@@ -484,7 +511,8 @@ export const LocalStore = {
 
   saveRecipes(recipes: Recipe[]) {
     if (typeof window === "undefined") return;
-    localStorage.setItem(STORAGE_KEYS.RECIPES, JSON.stringify(recipes));
+    const clean = this.deduplicateRecipes(recipes);
+    localStorage.setItem(STORAGE_KEYS.RECIPES, JSON.stringify(clean));
     window.dispatchEvent(new Event("menuplanik_recipes_changed"));
   },
 
@@ -500,7 +528,32 @@ export const LocalStore = {
     };
 
     const list = this.getAllRecipesRaw();
-    const updated = [recipeWithMeta, ...list.filter((r) => r.id !== recipeWithMeta.id)];
+    // Filter out any recipe with same ID or same title/author combination to prevent duplicates
+    const filtered = list.filter(
+      (r) =>
+        r.id !== recipeWithMeta.id &&
+        !(
+          r.title.trim().toLowerCase() === recipeWithMeta.title.trim().toLowerCase() &&
+          (r.authorName || "").trim().toLowerCase() === (recipeWithMeta.authorName || "").trim().toLowerCase()
+        )
+    );
+    const updated = [recipeWithMeta, ...filtered];
+    this.saveRecipes(updated);
+    return this.getRecipes();
+  },
+
+  replaceRecipe(oldId: string, newRecipe: Recipe) {
+    const list = this.getAllRecipesRaw();
+    const filtered = list.filter(
+      (r) =>
+        r.id !== oldId &&
+        r.id !== newRecipe.id &&
+        !(
+          r.title.trim().toLowerCase() === newRecipe.title.trim().toLowerCase() &&
+          (r.authorName || "").trim().toLowerCase() === (newRecipe.authorName || "").trim().toLowerCase()
+        )
+    );
+    const updated = [newRecipe, ...filtered];
     this.saveRecipes(updated);
     return this.getRecipes();
   },

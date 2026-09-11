@@ -48,7 +48,8 @@ export async function generateWeeklyPlanWithAI(params: {
         : "";
 
     const prompt = `
-Ets un xef i nutricionista expert de màxima precisió. Genera un pla de menjars setmanal (de Dilluns a Diumenge) complet i equilibrat amb Esmorzar, Dinar i Sopar per a cada dia.
+Ets un xef i nutricionista expert de màxima precisió. Genera un pla de menjars setmanal (de Dilluns a Diumenge) complet i equilibrat.
+IMPORTANTÍSSIM: Els àpats clau i protagonistes de l'aplicació són el DINAR i el SOPAR. L'Esmorzar ha de ser una idea/suggeriment ràpid i senzill d'esmorzar del dia (ex: torrades amb alvocat, iogurt amb nous i fruita, civada, ous remenats).
 Tots els textos (títols, descripcions, ingredients, instruccions) han d'estar en CATALÀ.
 
 Preferències de l'usuari:

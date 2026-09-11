@@ -58,9 +58,9 @@ export const MealSlotCard: React.FC<MealSlotCardProps> = ({
       {/* Header bar */}
       <div className="flex items-center justify-between px-3.5 py-2 border-b border-zinc-100 dark:border-zinc-800/80 bg-zinc-50/50 dark:bg-zinc-800/30">
         <div className="flex items-center gap-1.5">
-          <span className="text-base">{mealIcons[slot.mealType] || "🍽️"}</span>
+          <span className="text-base">{slot.mealType === "breakfast" ? "💡" : mealIcons[slot.mealType] || "🍽️"}</span>
           <span className="text-xs font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-300">
-            {formatMealTypeName(slot.mealType)}
+            {slot.mealType === "breakfast" ? "Idea Esmorzar" : formatMealTypeName(slot.mealType)}
           </span>
         </div>
 

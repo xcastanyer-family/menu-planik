@@ -24,6 +24,8 @@ import {
   Printer,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  Lightbulb,
   Flame,
   Users,
 } from "lucide-react";
@@ -50,6 +52,25 @@ export default function PlannerPage() {
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
   const [cookingRecipe, setCookingRecipe] = useState<Recipe | null>(null);
   const [regeneratingSlotId, setRegeneratingSlotId] = useState<string | null>(null);
+  const [expandedBreakfastDays, setExpandedBreakfastDays] = useState<Record<string, boolean>>({});
+
+  const toggleBreakfastDay = (day: string) => {
+    setExpandedBreakfastDays((prev) => ({
+      ...prev,
+      [day]: !prev[day],
+    }));
+  };
+
+  const allBreakfastExpanded = DAYS_LIST.every((d) => !!expandedBreakfastDays[d]);
+
+  const toggleAllBreakfast = () => {
+    const nextVal = !allBreakfastExpanded;
+    const updated: Record<string, boolean> = {};
+    DAYS_LIST.forEach((d) => {
+      updated[d] = nextVal;
+    });
+    setExpandedBreakfastDays(updated);
+  };
 
   useEffect(() => {
     setMealPlan(LocalStore.getMealPlan());
@@ -164,6 +185,19 @@ export default function PlannerPage() {
         {/* Action buttons */}
         <div className="flex items-center gap-2 flex-wrap w-full md:w-auto">
           <Button
+            variant="outline"
+            size="sm"
+            onClick={toggleAllBreakfast}
+            title={allBreakfastExpanded ? "Amaga idees d'esmorzar" : "Mostra idees d'esmorzar"}
+            className="border-amber-200/80 dark:border-amber-800/60 bg-amber-50/50 dark:bg-amber-950/20 text-amber-900 dark:text-amber-200 hover:bg-amber-100/70"
+          >
+            <Lightbulb className="w-4 h-4 text-amber-500" />
+            <span className="hidden sm:inline">
+              {allBreakfastExpanded ? "Amaga Esmorzars" : "Idees Esmorzar"}
+            </span>
+          </Button>
+
+          <Button
             variant="primary"
             onClick={() => setIsGenerateOpen(true)}
             className="bg-gradient-to-r from-primary-600 to-emerald-600 hover:from-primary-700 hover:to-emerald-700 text-white"
@@ -219,17 +253,68 @@ export default function PlannerPage() {
 
               {/* Day Slots */}
               <div className="space-y-2.5">
-                {daySlots.map((slot) => (
-                  <MealSlotCard
-                    key={slot.id}
-                    slot={slot}
-                    onSelectRecipe={(recipe) => setSelectedRecipe(recipe)}
-                    onSwapMeal={() => setSwapSlot(slot)}
-                    onToggleCompleted={handleToggleCompleted}
-                    onRegenerateWithAI={handleRegenerateSlotWithAI}
-                    isRegenerating={regeneratingSlotId === slot.id}
-                  />
-                ))}
+                {/* Main Meals: Dinar & Sopar (Comida i Sopar com a protagonistes) */}
+                {daySlots
+                  .filter((s) => s.mealType !== "breakfast")
+                  .map((slot) => (
+                    <MealSlotCard
+                      key={slot.id}
+                      slot={slot}
+                      onSelectRecipe={(recipe) => setSelectedRecipe(recipe)}
+                      onSwapMeal={() => setSwapSlot(slot)}
+                      onToggleCompleted={handleToggleCompleted}
+                      onRegenerateWithAI={handleRegenerateSlotWithAI}
+                      isRegenerating={regeneratingSlotId === slot.id}
+                    />
+                  ))}
+
+                {/* Idea Esmorzar: Ocult/Plegat per defecte com a suggeriment del dia */}
+                {(() => {
+                  const bSlot = daySlots.find((s) => s.mealType === "breakfast");
+                  if (!bSlot) return null;
+                  const isExpanded = !!expandedBreakfastDays[day];
+
+                  return (
+                    <div className="pt-0.5">
+                      <button
+                        type="button"
+                        onClick={() => toggleBreakfastDay(day)}
+                        className="w-full flex items-center justify-between gap-1.5 px-2.5 py-1.5 rounded-xl bg-amber-50/70 hover:bg-amber-100/80 dark:bg-amber-950/25 dark:hover:bg-amber-900/35 border border-amber-200/60 dark:border-amber-800/40 text-left transition group text-xs"
+                        title="Fes clic per veure o amagar la idea d'esmorzar"
+                      >
+                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                          <span className="text-xs">💡</span>
+                          <div className="min-w-0 flex-1 truncate">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300 block">
+                              Idea Esmorzar
+                            </span>
+                            <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 truncate block">
+                              {bSlot.recipe?.title || "Suggeriment del dia"}
+                            </span>
+                          </div>
+                        </div>
+                        <ChevronDown
+                          className={`w-3.5 h-3.5 text-amber-700 dark:text-amber-400 shrink-0 transition-transform duration-200 ${
+                            isExpanded ? "rotate-180" : ""
+                          }`}
+                        />
+                      </button>
+
+                      {isExpanded && (
+                        <div className="mt-2 animate-in fade-in slide-in-from-top-1 duration-200">
+                          <MealSlotCard
+                            slot={bSlot}
+                            onSelectRecipe={(recipe) => setSelectedRecipe(recipe)}
+                            onSwapMeal={() => setSwapSlot(bSlot)}
+                            onToggleCompleted={handleToggleCompleted}
+                            onRegenerateWithAI={handleRegenerateSlotWithAI}
+                            isRegenerating={regeneratingSlotId === bSlot.id}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Day Nutritional Summary */}
@@ -271,8 +356,9 @@ export default function PlannerPage() {
           </div>
 
           <div className="space-y-3">
+            {/* Main Meals: Dinar & Sopar */}
             {mealPlan.slots
-              .filter((s) => s.day === selectedDay)
+              .filter((s) => s.day === selectedDay && s.mealType !== "breakfast")
               .map((slot) => (
                 <MealSlotCard
                   key={slot.id}
@@ -284,6 +370,59 @@ export default function PlannerPage() {
                   isRegenerating={regeneratingSlotId === slot.id}
                 />
               ))}
+
+            {/* Idea Esmorzar: Ocult/Plegat per defecte */}
+            {(() => {
+              const bSlot = mealPlan.slots.find(
+                (s) => s.day === selectedDay && s.mealType === "breakfast"
+              );
+              if (!bSlot) return null;
+              const isExpanded = !!expandedBreakfastDays[selectedDay];
+
+              return (
+                <div className="pt-0.5">
+                  <button
+                    type="button"
+                    onClick={() => toggleBreakfastDay(selectedDay)}
+                    className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-amber-50/70 hover:bg-amber-100/80 dark:bg-amber-950/25 dark:hover:bg-amber-900/35 border border-amber-200/60 dark:border-amber-800/40 text-left transition group text-xs"
+                    title="Fes clic per veure o amagar la idea d'esmorzar"
+                  >
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <span className="text-sm">💡</span>
+                      <div className="min-w-0 flex-1 truncate">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300 block">
+                          Idea Esmorzar del dia
+                        </span>
+                        <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 truncate block">
+                          {bSlot.recipe?.title || "Suggeriment del dia"}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0 text-amber-700 dark:text-amber-400 text-xs font-medium">
+                      <span>{isExpanded ? "Amaga" : "Veure"}</span>
+                      <ChevronDown
+                        className={`w-4 h-4 transition-transform duration-200 ${
+                          isExpanded ? "rotate-180" : ""
+                        }`}
+                      />
+                    </div>
+                  </button>
+
+                  {isExpanded && (
+                    <div className="mt-2 animate-in fade-in slide-in-from-top-1 duration-200">
+                      <MealSlotCard
+                        slot={bSlot}
+                        onSelectRecipe={(recipe) => setSelectedRecipe(recipe)}
+                        onSwapMeal={() => setSwapSlot(bSlot)}
+                        onToggleCompleted={handleToggleCompleted}
+                        onRegenerateWithAI={handleRegenerateSlotWithAI}
+                        isRegenerating={regeneratingSlotId === bSlot.id}
+                      />
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
 
           <DayNutritionSummary

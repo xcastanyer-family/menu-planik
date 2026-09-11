@@ -8,20 +8,22 @@ export function middleware(request: NextRequest) {
   const session = parseSessionCookie(cookieValue);
   const isAuthenticated = session?.isAuthenticated === true;
 
-  // 1. If not authenticated, allow ONLY /login (redirect all other routes to /login)
-  if (!isAuthenticated) {
-    if (pathname !== "/login") {
-      const loginUrl = new URL("/login", request.url);
-      if (pathname !== "/") {
-        loginUrl.searchParams.set("redirect", pathname + search);
-      }
-      return NextResponse.redirect(loginUrl);
-    }
+  // 1. The /login page must ALWAYS be accessible without redirects
+  if (pathname === "/login") {
     return NextResponse.next();
   }
 
-  // 2. If authenticated and visiting /login or root /, redirect to appropriate dashboard
-  if (pathname === "/login" || pathname === "/") {
+  // 2. If not authenticated, redirect all protected routes to /login
+  if (!isAuthenticated) {
+    const loginUrl = new URL("/login", request.url);
+    if (pathname !== "/") {
+      loginUrl.searchParams.set("redirect", pathname + search);
+    }
+    return NextResponse.redirect(loginUrl);
+  }
+
+  // 3. If authenticated and visiting root /, redirect to appropriate dashboard
+  if (pathname === "/") {
     if (session.role === "superadmin") {
       return NextResponse.redirect(new URL("/admin", request.url));
     }

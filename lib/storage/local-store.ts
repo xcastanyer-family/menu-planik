@@ -1,4 +1,5 @@
 import { Recipe, WeeklyMealPlan, PantryItem, GroceryItem, UserPreferences, Family, FamilyMember, UserSession } from "@/types";
+import { setSessionCookie, clearSessionCookie } from "@/lib/auth/session-cookie";
 import {
   INITIAL_RECIPES,
   INITIAL_MEAL_PLAN,
@@ -42,8 +43,10 @@ export const LocalStore = {
     if (typeof window === "undefined") return;
     if (session) {
       localStorage.setItem(STORAGE_KEYS.SESSION, JSON.stringify(session));
+      setSessionCookie(session);
     } else {
       localStorage.removeItem(STORAGE_KEYS.SESSION);
+      clearSessionCookie();
     }
     window.dispatchEvent(new Event("menuplanik_session_changed"));
   },

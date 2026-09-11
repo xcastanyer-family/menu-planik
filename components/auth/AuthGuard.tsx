@@ -74,15 +74,16 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({
     if (!isAdmin) {
       isAuthorized = false;
       reason = "Cal ser Administrador de la família per accedir a aquesta secció.";
+    } else if (requireAuth && !session.isAuthenticated) {
+      isAuthorized = false;
+      reason = "Cal que tinguis una sessió autenticada amb credencials d'Administrador.";
     }
-  }
-
-  if (requireAuth && !session.isAuthenticated && !isSuperadmin) {
+  } else if (requireAuth && !session.isAuthenticated && !isSuperadmin) {
     isAuthorized = false;
     reason = "Aquesta acció requereix una sessió autenticada amb credencials.";
   }
 
-  if (requireFamily && !session.familyId && !isSuperadmin) {
+  if (isAuthorized && requireFamily && !session.familyId && !isSuperadmin) {
     isAuthorized = false;
     reason = "No estàs associat a cap família activa. Introdueix un codi de família o registra'n una de nova.";
   }
@@ -108,12 +109,18 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({
       </div>
 
       <div className="flex flex-col sm:flex-row items-center justify-center gap-2 pt-2">
-        <Link href={`/login?redirect=${encodeURIComponent(typeof window !== "undefined" ? window.location.pathname : "/")}`} className="w-full sm:w-auto">
+        <button
+          onClick={() => {
+            LocalStore.logout();
+            window.location.href = "/login";
+          }}
+          className="w-full sm:w-auto"
+        >
           <Button variant="primary" className="w-full">
             <LogIn className="w-4 h-4 mr-1.5" />
             Inicia la Sessió
           </Button>
-        </Link>
+        </button>
 
         <Link href="/planner" className="w-full sm:w-auto">
           <Button variant="ghost" className="w-full text-zinc-500">

@@ -52,7 +52,7 @@ export function setSessionCookie(session: UserSession | null) {
 export function clearSessionCookie() {
   if (typeof document === "undefined") return;
   const isSecure = typeof window !== "undefined" && window.location.protocol === "https:";
-  document.cookie = `${SESSION_COOKIE_NAME}=; path=/; max-age=0; SameSite=Lax${isSecure ? "; Secure" : ""}`;
+  document.cookie = `${SESSION_COOKIE_NAME}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; max-age=0; SameSite=Lax${isSecure ? "; Secure" : ""}`;
 }
 
 /**

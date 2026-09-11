@@ -152,6 +152,8 @@ export async function PUT(request: Request) {
       instructions: recipe.instructions || [],
       image_url: recipe.imageUrl || null,
       difficulty: recipe.difficulty || "easy",
+      moderation_status: recipe.moderationStatus || (recipe.isPublic ? "approved_public" : "private"),
+      is_public: Boolean(recipe.isPublic),
     };
 
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(recipe.id);

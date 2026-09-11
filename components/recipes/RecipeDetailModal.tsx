@@ -5,8 +5,9 @@ import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Input, Textarea } from "@/components/ui/Input";
 import { Recipe, Ingredient } from "@/types";
-import { Clock, Flame, Users, Check, Play, Globe, Pencil, Trash2, Plus, ArrowLeft } from "lucide-react";
+import { Clock, Flame, Users, Check, Play, Globe, Pencil, Trash2, Plus, ArrowLeft, Lock } from "lucide-react";
 import { LocalStore } from "@/lib/storage/local-store";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 interface RecipeDetailModalProps {
@@ -69,10 +70,46 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
     setCheckedIngredients((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const handleSubmitForPublic = () => {
-    LocalStore.submitRecipeForPublicReview(recipe.id);
-    toast.success("Sol·licitud enviada! El Superadministrador la revisarà aviat.");
-    onClose();
+  const isCurrentlyPublic = Boolean(recipe?.isPublic || recipe?.moderationStatus === "approved_public");
+
+  const handleTogglePublic = async () => {
+    if (!recipe) return;
+
+    if (isCurrentlyPublic) {
+      LocalStore.unpublishRecipe(recipe.id);
+      try {
+        await fetch("/api/recipes", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            recipe: { ...recipe, moderationStatus: "private", isPublic: false },
+          }),
+        });
+      } catch (e) {
+        console.error(e);
+      }
+      const updated: Recipe = { ...recipe, moderationStatus: "private", isPublic: false };
+      if (onRecipeUpdated) onRecipeUpdated(updated);
+      toast.info(`"${recipe.title}" s'ha marcat com a recepta privada.`);
+      onClose();
+    } else {
+      LocalStore.publishRecipeDirectly(recipe.id);
+      try {
+        await fetch("/api/recipes", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            recipe: { ...recipe, moderationStatus: "approved_public", isPublic: true },
+          }),
+        });
+      } catch (e) {
+        console.error(e);
+      }
+      const updated: Recipe = { ...recipe, moderationStatus: "approved_public", isPublic: true };
+      if (onRecipeUpdated) onRecipeUpdated(updated);
+      toast.success(`"${recipe.title}" s'ha publicat directament al catàleg públic!`);
+      onClose();
+    }
   };
 
   const handleAddIngredient = () => {
@@ -310,17 +347,11 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
 
             <div>
               <div className="flex items-center gap-2 flex-wrap mb-1">
-                {recipe.moderationStatus === "approved_public" && (
+                {isCurrentlyPublic ? (
                   <span className="px-2.5 py-0.5 text-xs font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 rounded-full">
-                    🌐 Catàleg Públic Validat
+                    🌐 Catàleg Públic Global
                   </span>
-                )}
-                {recipe.moderationStatus === "pending_review" && (
-                  <span className="px-2.5 py-0.5 text-xs font-bold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 rounded-full">
-                    ⏳ Pendent de Validació pel Superadministrador
-                  </span>
-                )}
-                {recipe.moderationStatus === "private" && (
+                ) : (
                   <span className="px-2.5 py-0.5 text-xs font-bold bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 rounded-full">
                     🔒 Recepta Privada de la Família
                   </span>
@@ -482,17 +513,29 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
                 Tanca
               </Button>
 
-              {recipe.moderationStatus === "private" && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleSubmitForPublic}
-                  className="text-xs text-primary-600 hover:bg-primary-50 border-primary-200"
-                >
-                  <Globe className="w-3.5 h-3.5 mr-1" />
-                  Publica al Catàleg
-                </Button>
-              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleTogglePublic}
+                className={cn(
+                  "text-xs transition",
+                  isCurrentlyPublic
+                    ? "text-zinc-600 hover:bg-zinc-100 border-zinc-200 dark:text-zinc-300 dark:border-zinc-700"
+                    : "text-emerald-600 hover:bg-emerald-50 border-emerald-200 dark:text-emerald-400 dark:border-emerald-800"
+                )}
+              >
+                {isCurrentlyPublic ? (
+                  <>
+                    <Lock className="w-3.5 h-3.5 mr-1" />
+                    Fer Privada
+                  </>
+                ) : (
+                  <>
+                    <Globe className="w-3.5 h-3.5 mr-1" />
+                    Publicar al Catàleg
+                  </>
+                )}
+              </Button>
 
               {onRecipeUpdated && (
                 <Button

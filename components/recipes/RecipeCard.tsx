@@ -32,17 +32,11 @@ export const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick }) => {
           )}
 
           <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5 flex-wrap justify-end">
-            {recipe.moderationStatus === "approved_public" && (
+            {(recipe.moderationStatus === "approved_public" || recipe.isPublic) ? (
               <span className="px-2 py-0.5 text-[10px] font-bold bg-emerald-600/90 backdrop-blur-md text-white rounded-full flex items-center gap-1 shadow-sm">
                 🌐 Públic
               </span>
-            )}
-            {recipe.moderationStatus === "pending_review" && (
-              <span className="px-2 py-0.5 text-[10px] font-bold bg-amber-500/90 backdrop-blur-md text-zinc-950 rounded-full flex items-center gap-1 shadow-sm">
-                ⏳ Pendent
-              </span>
-            )}
-            {recipe.moderationStatus === "private" && (
+            ) : (
               <span className="px-2 py-0.5 text-[10px] font-bold bg-zinc-800/90 backdrop-blur-md text-zinc-200 rounded-full flex items-center gap-1 shadow-sm">
                 🔒 Privat
               </span>

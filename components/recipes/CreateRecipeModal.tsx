@@ -23,7 +23,7 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
   const [tab, setTab] = useState<"ai" | "manual">("ai");
   const [aiPrompt, setAiPrompt] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
-  const [requestPublicModeration, setRequestPublicModeration] = useState(false);
+  const [publishPublicly, setPublishPublicly] = useState(false);
 
   // Manual state
   const [title, setTitle] = useState("");
@@ -62,12 +62,12 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
       if (data.success && data.recipe) {
         const recipeToCreate: Recipe = {
           ...data.recipe,
-          moderationStatus: requestPublicModeration ? "pending_review" : "private",
-          isPublic: false,
+          moderationStatus: publishPublicly ? "approved_public" : "private",
+          isPublic: publishPublicly,
         };
         await onRecipeCreated(recipeToCreate);
-        if (requestPublicModeration) {
-          toast.info(`Nova recepta "${data.recipe.title}" creada i enviada a la cua de moderació del Superadministrador.`);
+        if (publishPublicly) {
+          toast.success(`Nova recepta "${data.recipe.title}" creada i publicada al Receptari Públic!`);
         } else {
           toast.success(`Nova recepta creada amb IA: ${data.recipe.title}!`);
         }
@@ -133,8 +133,8 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
       tags: ["Personalitzada"],
       dietaryTags: [dietaryTag],
       source: "custom",
-      moderationStatus: requestPublicModeration ? "pending_review" : "private",
-      isPublic: false,
+      moderationStatus: publishPublicly ? "approved_public" : "private",
+      isPublic: publishPublicly,
       ingredients: validIngredients.length > 0 ? validIngredients : [
         { id: "1", name: "Ingredients variats", amount: 1, unit: "unitat", category: "other" }
       ],
@@ -144,8 +144,8 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
     setIsSaving(true);
     try {
       await onRecipeCreated(newRecipe);
-      if (requestPublicModeration) {
-        toast.info("Recepta desada i enviada a la cua de moderació del Superadministrador.");
+      if (publishPublicly) {
+        toast.success("Recepta desada i publicada directament al catàleg públic!");
       } else {
         toast.success("Recepta desada al teu receptari!");
       }
@@ -220,20 +220,20 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
               <option value="gluten-free">Sense Gluten</option>
             </Select>
 
-            {/* Public Moderation Checkbox */}
+            {/* Public Direct Checkbox */}
             <label className="flex items-start gap-2.5 p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 cursor-pointer">
               <input
                 type="checkbox"
-                checked={requestPublicModeration}
-                onChange={(e) => setRequestPublicModeration(e.target.checked)}
+                checked={publishPublicly}
+                onChange={(e) => setPublishPublicly(e.target.checked)}
                 className="mt-0.5 rounded border-zinc-300 text-primary-600 focus:ring-primary-500"
               />
               <div className="text-xs">
                 <span className="font-semibold text-zinc-800 dark:text-zinc-200 block">
-                  🌐 Sol·licitar publicació al Receptari Públic Global
+                  🌐 Publicar directament al Receptari Públic Global
                 </span>
                 <span className="text-zinc-500 dark:text-zinc-400">
-                  La recepta es trametrà al <strong>Superadministrador</strong> per ser validada abans de fer-se visible per a la resta de famílies.
+                  La recepta es publicarà al catàleg general i serà visible immediatament per a tothom, sense necessitat d&apos;aprovació de ningú.
                 </span>
               </div>
             </label>
@@ -353,20 +353,20 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
               rows={4}
             />
 
-            {/* Public Moderation Checkbox Manual */}
+            {/* Public Direct Checkbox Manual */}
             <label className="flex items-start gap-2.5 p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 cursor-pointer">
               <input
                 type="checkbox"
-                checked={requestPublicModeration}
-                onChange={(e) => setRequestPublicModeration(e.target.checked)}
+                checked={publishPublicly}
+                onChange={(e) => setPublishPublicly(e.target.checked)}
                 className="mt-0.5 rounded border-zinc-300 text-primary-600 focus:ring-primary-500"
               />
               <div className="text-xs">
                 <span className="font-semibold text-zinc-800 dark:text-zinc-200 block">
-                  🌐 Sol·licitar publicació al Receptari Públic Global
+                  🌐 Publicar directament al Receptari Públic Global
                 </span>
                 <span className="text-zinc-500 dark:text-zinc-400">
-                  La recepta passarà a la cua de revisió del <strong>Superadministrador</strong> abans de ser afegida al catàleg públic general.
+                  La recepta es publicarà al catàleg general i serà visible immediatament per a tothom, sense necessitat d&apos;aprovació de ningú.
                 </span>
               </div>
             </label>

@@ -312,8 +312,8 @@ export const INITIAL_RECIPES: Recipe[] = [
     imageUrl: "https://images.unsplash.com/photo-1534422298391-e4f8c172dddb?auto=format&fit=crop&w=800&q=80",
     source: "custom",
     difficulty: "medium",
-    moderationStatus: "pending_review",
-    isPublic: false,
+    moderationStatus: "approved_public",
+    isPublic: true,
     createdAt: "2026-09-05T14:40:00.000Z",
     ingredients: [
       { id: "ing-p1", name: "Fideus del núm. 2 o 3", amount: 350, unit: "g", category: "pantry" },
@@ -346,8 +346,8 @@ export const INITIAL_RECIPES: Recipe[] = [
     imageUrl: "https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=800&q=80",
     source: "custom",
     difficulty: "easy",
-    moderationStatus: "pending_review",
-    isPublic: false,
+    moderationStatus: "approved_public",
+    isPublic: true,
     createdAt: "2026-09-05T16:15:00.000Z",
     ingredients: [
       { id: "ing-p6", name: "Pebrots vermells grans", amount: 2, unit: "unitats", category: "produce" },

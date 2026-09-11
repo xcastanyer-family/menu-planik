@@ -453,9 +453,16 @@ export const LocalStore = {
         localStorage.setItem(STORAGE_KEYS.RECIPES, JSON.stringify(INITIAL_RECIPES));
         return INITIAL_RECIPES;
       }
-      const parsed: Recipe[] = JSON.parse(data);
+      let changed = false;
+      const parsed: Recipe[] = JSON.parse(data).map((r: Recipe) => {
+        if (r.moderationStatus === "pending_review") {
+          changed = true;
+          return { ...r, moderationStatus: "approved_public" as const, isPublic: true };
+        }
+        return r;
+      });
       const deduplicated = this.deduplicateRecipes(parsed);
-      if (deduplicated.length !== parsed.length) {
+      if (deduplicated.length !== parsed.length || changed) {
         localStorage.setItem(STORAGE_KEYS.RECIPES, JSON.stringify(deduplicated));
       }
       return deduplicated;
@@ -518,12 +525,13 @@ export const LocalStore = {
 
   addRecipe(recipe: Recipe) {
     const session = this.getCurrentSession();
+    const isPublic = Boolean(recipe.isPublic || recipe.moderationStatus === "approved_public");
     const recipeWithMeta: Recipe = {
       ...recipe,
       familyId: recipe.familyId || session?.familyId || undefined,
       authorName: recipe.authorName || session?.name || "Autor Desconegut",
-      moderationStatus: recipe.moderationStatus || "private",
-      isPublic: recipe.moderationStatus === "approved_public" ? true : false,
+      moderationStatus: isPublic ? "approved_public" : "private",
+      isPublic: isPublic,
       createdAt: recipe.createdAt || new Date().toISOString(),
     };
 
@@ -572,7 +580,7 @@ export const LocalStore = {
     return this.getRecipes();
   },
 
-  approveRecipePublic(recipeId: string) {
+  publishRecipeDirectly(recipeId: string) {
     const list = this.getAllRecipesRaw();
     const updated = list.map((r) => {
       if (r.id === recipeId) {
@@ -586,6 +594,27 @@ export const LocalStore = {
       return r;
     });
     this.saveRecipes(updated);
+    return this.getRecipes();
+  },
+
+  unpublishRecipe(recipeId: string) {
+    const list = this.getAllRecipesRaw();
+    const updated = list.map((r) => {
+      if (r.id === recipeId) {
+        return {
+          ...r,
+          moderationStatus: "private" as const,
+          isPublic: false,
+        };
+      }
+      return r;
+    });
+    this.saveRecipes(updated);
+    return this.getRecipes();
+  },
+
+  approveRecipePublic(recipeId: string) {
+    return this.publishRecipeDirectly(recipeId);
   },
 
   rejectRecipePublic(recipeId: string, reason?: string) {
@@ -602,21 +631,11 @@ export const LocalStore = {
       return r;
     });
     this.saveRecipes(updated);
+    return this.getRecipes();
   },
 
   submitRecipeForPublicReview(recipeId: string) {
-    const list = this.getAllRecipesRaw();
-    const updated = list.map((r) => {
-      if (r.id === recipeId) {
-        return {
-          ...r,
-          moderationStatus: "pending_review" as const,
-          isPublic: false,
-        };
-      }
-      return r;
-    });
-    this.saveRecipes(updated);
+    return this.publishRecipeDirectly(recipeId);
   },
 
   // --- Meal Plan ---

@@ -366,6 +366,29 @@ export const LocalStore = {
     return { success: true, message: "Família rebutjada." };
   },
 
+  deleteFamily(familyId: string): { success: boolean; message: string } {
+    const all = this.getAllFamilies();
+    const updated = all.filter((f) => f.id !== familyId);
+    this.saveAllFamilies(updated);
+
+    // Also remove recipes belonging to this family
+    const allRecipes = this.getAllRecipesRaw();
+    const updatedRecipes = allRecipes.filter((r) => r.familyId !== familyId);
+    this.saveRecipes(updatedRecipes);
+
+    // If current user belonged to this family, logout
+    const curr = this.getCurrentSession();
+    if (curr.familyId === familyId) {
+      this.logout();
+    }
+    return { success: true, message: "Família eliminada correctament." };
+  },
+
+  deleteSuperadminAccount(): { success: boolean; message: string } {
+    this.logout();
+    return { success: true, message: "Compte de Superadministrador eliminat." };
+  },
+
   // --- Active Family Management for Normal Users ---
   getFamily(familyId?: string): Family {
     const all = this.getAllFamilies();

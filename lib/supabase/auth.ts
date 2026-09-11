@@ -279,4 +279,43 @@ export const SupabaseAuthService = {
     }
     return LocalStore.rejectFamily(familyId, reason);
   },
+
+  /**
+   * Superadmin permanently deletes a family and its cascade data
+   */
+  async deleteFamily(familyId: string): Promise<AuthResponse> {
+    const supabase = createClient();
+    if (supabase) {
+      try {
+        const { error } = await supabase.from("families").delete().eq("id", familyId);
+        if (error) {
+          console.warn("Supabase delete family error:", error.message);
+        }
+      } catch (err) {
+        console.warn("Supabase delete family error:", err);
+      }
+    }
+    return LocalStore.deleteFamily(familyId);
+  },
+
+  /**
+   * Superadmin permanently deletes their own account
+   */
+  async deleteSuperadminAccount(): Promise<AuthResponse> {
+    const supabase = createClient();
+    const session = LocalStore.getCurrentSession();
+    if (supabase && session.userId) {
+      try {
+        await supabase.from("profiles").delete().eq("id", session.userId);
+        await supabase.auth.signOut();
+      } catch (err) {
+        console.warn("Supabase delete superadmin error:", err);
+      }
+    }
+    LocalStore.deleteSuperadminAccount();
+    if (typeof window !== "undefined") {
+      window.location.href = "/login";
+    }
+    return { success: true, message: "Compte eliminat correctament." };
+  },
 };

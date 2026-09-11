@@ -26,8 +26,10 @@ import {
   Search,
   LogOut,
   LogIn,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { SupabaseAuthService } from "@/lib/supabase/auth";
 
 export default function AdminDashboardPage() {
   const router = useRouter();
@@ -72,6 +74,28 @@ export default function AdminDashboardPage() {
     if (reason !== null) {
       LocalStore.rejectFamily(familyId, reason);
       toast.error(`Família "${name}" rebutjada.`);
+    }
+  };
+
+  const handleDeleteFamily = async (familyId: string, name: string) => {
+    if (
+      confirm(
+        `ATENCIÓ: Estàs a punt d'eliminar definitivament la "${name}" i tots els seus membres, receptes i dades de la plataforma.\nVols continuar?`
+      )
+    ) {
+      await SupabaseAuthService.deleteFamily(familyId);
+      refresh();
+      toast.success(`Família "${name}" eliminada definitivament.`);
+    }
+  };
+
+  const handleDeleteSuperadmin = async () => {
+    const confirmText = prompt(
+      'ATENCIÓ CRÍTICA: Estàs a punt d\'eliminar definitivament el teu compte de Superadministrador.\nPer confirmar l\'acció, escriu exactament "ELIMINAR":'
+    );
+    if (confirmText === "ELIMINAR") {
+      await SupabaseAuthService.deleteSuperadminAccount();
+      toast.success("Compte de Superadministrador eliminat.");
     }
   };
 
@@ -146,10 +170,21 @@ export default function AdminDashboardPage() {
               variant="outline"
               size="sm"
               onClick={handleLogout}
-              className="text-xs border-zinc-700 hover:bg-rose-950/40 hover:text-rose-300 hover:border-rose-800 text-zinc-300"
+              className="text-xs border-zinc-700 hover:bg-zinc-800 text-zinc-300"
             >
-              <LogOut className="w-3.5 h-3.5 mr-1 text-rose-400" />
+              <LogOut className="w-3.5 h-3.5 mr-1" />
               Tanca Sessió
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDeleteSuperadmin}
+              className="text-xs border-rose-900/60 bg-rose-950/20 hover:bg-rose-900/40 text-rose-300 hover:text-rose-200"
+              title="Elimina el compte de Superadministrador"
+            >
+              <Trash2 className="w-3.5 h-3.5 mr-1 text-rose-400" />
+              Elimina Compte
             </Button>
           </div>
         </div>
@@ -415,10 +450,22 @@ export default function AdminDashboardPage() {
                       variant="outline"
                       size="sm"
                       onClick={() => handleRejectFamily(fam.id, fam.name)}
-                      className="text-rose-600 hover:bg-rose-50 border-rose-200"
+                      className="text-amber-600 hover:bg-amber-50 border-amber-200"
+                      title="Rebutja sol·licitud"
                     >
                       <XCircle className="w-4 h-4 mr-1.5" />
                       Rebutja
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDeleteFamily(fam.id, fam.name)}
+                      className="text-rose-600 hover:bg-rose-50 border-rose-200"
+                      title="Elimina definitivament la família"
+                    >
+                      <Trash2 className="w-4 h-4 mr-1.5" />
+                      Elimina
                     </Button>
                   </div>
                 </div>
@@ -640,11 +687,22 @@ export default function AdminDashboardPage() {
                             variant="outline"
                             size="sm"
                             onClick={() => handleRejectFamily(fam.id, fam.name)}
-                            className="text-[11px] py-1 px-2.5 text-rose-600 hover:bg-rose-50 border-rose-200"
+                            className="text-[11px] py-1 px-2.5 text-amber-600 hover:bg-amber-50 border-amber-200"
+                            title="Desactiva família"
                           >
                             Desactiva
                           </Button>
                         )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDeleteFamily(fam.id, fam.name)}
+                          className="text-[11px] py-1 px-2.5 text-rose-600 hover:bg-rose-50 border-rose-200"
+                          title="Elimina definitivament la família i les seves dades"
+                        >
+                          <Trash2 className="w-3.5 h-3.5 mr-1" />
+                          Elimina
+                        </Button>
                       </td>
                     </tr>
                   ))}

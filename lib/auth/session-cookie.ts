@@ -42,7 +42,8 @@ export function setSessionCookie(session: UserSession | null) {
   const encoded = encodeURIComponent(JSON.stringify(data));
   // 30 days expiration
   const maxAge = 60 * 60 * 24 * 30;
-  document.cookie = `${SESSION_COOKIE_NAME}=${encoded}; path=/; max-age=${maxAge}; SameSite=Lax`;
+  const isSecure = typeof window !== "undefined" && window.location.protocol === "https:";
+  document.cookie = `${SESSION_COOKIE_NAME}=${encoded}; path=/; max-age=${maxAge}; SameSite=Lax${isSecure ? "; Secure" : ""}`;
 }
 
 /**
@@ -50,7 +51,8 @@ export function setSessionCookie(session: UserSession | null) {
  */
 export function clearSessionCookie() {
   if (typeof document === "undefined") return;
-  document.cookie = `${SESSION_COOKIE_NAME}=; path=/; max-age=0; SameSite=Lax`;
+  const isSecure = typeof window !== "undefined" && window.location.protocol === "https:";
+  document.cookie = `${SESSION_COOKIE_NAME}=; path=/; max-age=0; SameSite=Lax${isSecure ? "; Secure" : ""}`;
 }
 
 /**

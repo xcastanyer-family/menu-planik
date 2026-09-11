@@ -40,6 +40,20 @@ export const SupabaseAuthService = {
     // 1. If Supabase is connected, execute Supabase Auth
     if (supabase) {
       try {
+        // Verify that the family code exists in Supabase
+        const { data: family, error: famError } = await supabase
+          .from("families")
+          .select("*")
+          .eq("code", cleanCode)
+          .maybeSingle();
+
+        if (famError || !family) {
+          return {
+            success: false,
+            message: `El codi "${cleanCode}" no correspon a cap família activa a Supabase. Comprova el codi amb l'administrador de la teva llar.`,
+          };
+        }
+
         const { data, error } = await supabase.auth.signUp({
           email: cleanEmail,
           password: params.password || "Password123!",
@@ -55,12 +69,33 @@ export const SupabaseAuthService = {
         if (error) {
           return { success: false, message: `Error de registre Supabase: ${error.message}` };
         }
+
+        if (data.user) {
+          const session: UserSession = {
+            userId: data.user.id,
+            memberId: data.user.id,
+            familyId: family.id,
+            name: params.fullName.trim(),
+            email: cleanEmail,
+            role: "user",
+            status: family.status || "active",
+            familyCode: family.code,
+            familyName: family.name,
+            isAuthenticated: true,
+          };
+          LocalStore.saveCurrentSession(session);
+          return {
+            success: true,
+            message: `Compte creat correctament! T'has unit a la ${family.name}.`,
+            session,
+          };
+        }
       } catch (err: any) {
-        console.warn("Supabase Auth warning, fallbacking to local store:", err);
+        console.warn("Supabase Auth error, fallbacking to local store:", err);
       }
     }
 
-    // 2. Synchronize / persist locally
+    // 2. Fallback to LocalStore if Supabase not configured
     return LocalStore.signUpUser(params.fullName.trim(), cleanEmail, params.password || "", cleanCode);
   },
 
@@ -88,8 +123,36 @@ export const SupabaseAuthService = {
         if (error) {
           return { success: false, message: `Error de registre Supabase: ${error.message}` };
         }
+
+        if (data.user) {
+          // Fetch family created by trigger
+          const { data: family } = await supabase
+            .from("families")
+            .select("*")
+            .eq("admin_id", data.user.id)
+            .maybeSingle();
+
+          const session: UserSession = {
+            userId: data.user.id,
+            memberId: data.user.id,
+            familyId: family?.id || "",
+            name: params.fullName.trim(),
+            email: cleanEmail,
+            role: "admin",
+            status: "pending",
+            familyCode: family?.code || "",
+            familyName: family?.name || params.familyName.trim(),
+            isAuthenticated: true,
+          };
+          LocalStore.saveCurrentSession(session);
+          return {
+            success: true,
+            message: `Família "${session.familyName}" registrada amb èxit! El teu compte està pendent de validació.`,
+            session,
+          };
+        }
       } catch (err: any) {
-        console.warn("Supabase Auth warning, fallbacking to local store:", err);
+        console.warn("Supabase Auth error, fallbacking to local store:", err);
       }
     }
 
@@ -103,6 +166,7 @@ export const SupabaseAuthService = {
     const supabase = createClient();
     const cleanEmail = params.email.trim().toLowerCase();
 
+    // 1. If Supabase is connected, attempt Supabase authentication
     if (supabase && params.password) {
       try {
         const { data, error } = await supabase.auth.signInWithPassword({
@@ -111,14 +175,54 @@ export const SupabaseAuthService = {
         });
 
         if (error) {
-          console.warn("Supabase signIn error:", error.message);
+          // If demo accounts, fallback to LocalStore
+          if (
+            cleanEmail.endsWith("@menuplanik.cat") ||
+            cleanEmail.endsWith("@exemple.cat")
+          ) {
+            return LocalStore.signIn(cleanEmail, params.password);
+          }
+          return { success: false, message: `Error d'accés: ${error.message}` };
+        }
+
+        if (data?.user) {
+          // Fetch profile and associated family
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("*, families(*)")
+            .eq("id", data.user.id)
+            .maybeSingle();
+
+          const family = (profile as any)?.families;
+          const role = profile?.role || data.user.user_metadata?.role || "user";
+          const status = profile?.status || family?.status || "active";
+
+          const session: UserSession = {
+            userId: data.user.id,
+            memberId: data.user.id,
+            familyId: family?.id || profile?.family_id || "",
+            name: profile?.full_name || data.user.user_metadata?.full_name || cleanEmail.split("@")[0],
+            email: cleanEmail,
+            role: role as UserRole,
+            status: status,
+            familyCode: family?.code || data.user.user_metadata?.family_code || "",
+            familyName: family?.name || data.user.user_metadata?.family_name || "",
+            isAuthenticated: true,
+          };
+
+          LocalStore.saveCurrentSession(session);
+          return {
+            success: true,
+            message: `Benvingut/da ${session.name}! Sessió iniciada.`,
+            session,
+          };
         }
       } catch (err: any) {
         console.warn("Supabase Auth connection error:", err);
       }
     }
 
-    // Validate and load session through LocalStore
+    // 2. Validate and load session through LocalStore fallback
     return LocalStore.signIn(cleanEmail, params.password);
   },
 
@@ -176,4 +280,3 @@ export const SupabaseAuthService = {
     return LocalStore.rejectFamily(familyId, reason);
   },
 };
-

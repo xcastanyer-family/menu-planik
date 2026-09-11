@@ -146,17 +146,43 @@ export function generateSmartRecipeFromPrompt(params: {
   day?: DayOfWeek;
   dietaryPreference?: DietaryPreference;
   notes?: string;
+  dishName?: string;
+  servings?: number;
+  maxTimeMinutes?: number;
+  includeIngredients?: string[];
+  excludeIngredients?: string[];
 }): Recipe {
-  const prompt = params.notes?.trim() || "Recepta casolana mediterrània";
-  const title = cleanTitle(prompt);
-  const archetype = detectArchetype(`${title} ${prompt}`);
-  const lower = `${title} ${prompt}`.toLowerCase();
+  const prompt = params.dishName?.trim() || params.notes?.trim() || "Recepta casolana mediterrània";
+  const title = params.dishName?.trim() ? cleanTitle(params.dishName) : cleanTitle(prompt);
+  const archetype = detectArchetype(`${title} ${prompt} ${params.notes || ""}`);
+  const lower = `${title} ${prompt} ${params.notes || ""} ${params.includeIngredients?.join(" ") || ""}`.toLowerCase();
+  const servings = params.servings || 2;
+  const ratio = servings / 2;
 
   // Extract explicit ingredients from catalog
   const matchedDefs: KnownIngredientDef[] = [];
   for (const def of KNOWN_INGREDIENTS) {
+    // Check if ingredient is excluded
+    if (params.excludeIngredients?.some((ex) => ex.trim() && def.keywords.some((kw) => ex.toLowerCase().includes(kw)))) {
+      continue;
+    }
     if (def.keywords.some((kw) => lower.includes(kw))) {
       matchedDefs.push(def);
+    }
+  }
+
+  // Also include any custom ingredients specified in includeIngredients
+  if (params.includeIngredients) {
+    for (const inc of params.includeIngredients) {
+      if (inc.trim() && !matchedDefs.some((d) => d.name.toLowerCase().includes(inc.toLowerCase()))) {
+        matchedDefs.push({
+          name: inc.trim(),
+          amount: Math.round(100 * ratio),
+          unit: "g",
+          category: "produce",
+          keywords: [inc.toLowerCase().trim()],
+        });
+      }
     }
   }
 
@@ -195,7 +221,7 @@ export function generateSmartRecipeFromPrompt(params: {
     baseIngredients.push({
       id: `ing-${idx}-${Date.now()}`,
       name: def.name,
-      amount: def.amount,
+      amount: Math.max(1, Math.round(def.amount * ratio)),
       unit: def.unit,
       category: def.category,
     });
@@ -432,7 +458,7 @@ export function generateSmartRecipeFromPrompt(params: {
     description: `Deliciosa recepta de ${title.toLowerCase()}, preparada pas a pas amb ingredients frescos de qualitat i equilibrada nutricionalment.`,
     prepTimeMinutes,
     cookTimeMinutes,
-    servings: 2,
+    servings: servings,
     calories,
     nutrition: {
       calories,

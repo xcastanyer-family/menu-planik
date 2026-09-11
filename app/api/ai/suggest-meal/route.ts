@@ -10,6 +10,11 @@ export async function POST(req: NextRequest) {
       day = "monday",
       dietaryPreference = "mediterranean",
       notes = "",
+      dishName,
+      servings = 2,
+      maxTimeMinutes,
+      includeIngredients = [],
+      excludeIngredients = [],
       customApiKey,
     } = body;
 
@@ -18,6 +23,11 @@ export async function POST(req: NextRequest) {
       day: day as DayOfWeek,
       dietaryPreference: dietaryPreference as DietaryPreference,
       notes,
+      dishName,
+      servings: Number(servings) || 2,
+      maxTimeMinutes: maxTimeMinutes ? Number(maxTimeMinutes) : undefined,
+      includeIngredients: Array.isArray(includeIngredients) ? includeIngredients : [],
+      excludeIngredients: Array.isArray(excludeIngredients) ? excludeIngredients : [],
       customApiKey,
     });
 

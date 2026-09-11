@@ -202,10 +202,15 @@ Cada ingredient ha de tenir una "category" escollida entre: "produce", "dairy", 
 }
 
 export async function suggestMealAlternativeWithAI(params: {
-  mealType: MealType;
-  day: DayOfWeek;
-  dietaryPreference: DietaryPreference;
+  mealType?: MealType;
+  day?: DayOfWeek;
+  dietaryPreference?: DietaryPreference;
   notes?: string;
+  dishName?: string;
+  servings?: number;
+  maxTimeMinutes?: number;
+  includeIngredients?: string[];
+  excludeIngredients?: string[];
   customApiKey?: string;
 }): Promise<Recipe> {
   const apiKey = getApiKey(params.customApiKey);
@@ -219,32 +224,40 @@ export async function suggestMealAlternativeWithAI(params: {
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-    const prompt = `
-Ets un xef expert i assistent culinari de precisió.
-Crea una recepta apetitosa, realista i detallada basada ESTRICTAMENT en la següent petició de l'usuari:
-"${params.notes || "Una opció saborosa, ràpida i equilibrada"}"
+    const mealTypeStr = params.mealType || "lunch";
+    const servingsCount = params.servings || 2;
+    const requestedDish = params.dishName?.trim() || "";
+    const requestedNotes = params.notes?.trim() || "";
 
-Context:
-- Tipus d'àpat: "${params.mealType}"
-- Dia de la setmana: "${params.day}"
-- Preferència alimentària: "${params.dietaryPreference}"
+    const prompt = `
+Ets un xef d'alta cuina i assistent culinari de màxima precisió.
+Crea una recepta apetitosa, realista i detallada adaptant-te ESTRICTAMENT a les següents especificacions de l'usuari:
+${requestedDish ? `- Plat sol·licitat / Títol desitjat: "${requestedDish}"` : ""}
+${requestedNotes ? `- Indicacions / Especificacions addicionals: "${requestedNotes}"` : ""}
+- Tipus d'àpat: "${mealTypeStr}"
+- Racions: ${servingsCount} persones
+- Preferència alimentària: "${params.dietaryPreference || "mediterranean"}"
+${params.maxTimeMinutes ? `- Temps màxim disponible: aprox ${params.maxTimeMinutes} minuts` : ""}
+${params.includeIngredients && params.includeIngredients.length > 0 ? `- Ingredients que CAL incloure obligatòriament: ${params.includeIngredients.join(", ")}` : ""}
+${params.excludeIngredients && params.excludeIngredients.length > 0 ? `- Ingredients o al·lèrgens a EVITAR estrictament: ${params.excludeIngredients.join(", ")}` : ""}
 
 IMPORTANT:
 1. Tot el contingut ha d'estar escrit en CATALÀ.
-2. Si l'usuari demana un plat concret (ex: arròs negre, truita de patates, salmó, etc.), la recepta ha de ser EXACTAMENT d'aquest plat.
-3. Quantitats realistes en grams, ml o unitats.
-4. Respon EXCLUSIVAMENT amb un JSON vàlid estructurat exactament així:
+2. Si l'usuari indica un plat o ingredients concrets (ex: macarrons, arròs negre, salmó, etc.), la recepta ha d'adaptar-se de manera fidel a totes les especificacions donades.
+3. Quantitats realistes en grams, ml o unitats ajustades per a ${servingsCount} persones.
+4. Instruccions clares, pas a pas, fàcils de seguir.
+5. Respon EXCLUSIVAMENT amb un JSON vàlid estructurat exactament així:
 {
-  "title": "Títol exacte de la recepta",
-  "description": "Descripció breu i atractiva",
+  "title": "Títol exacte i atractiu de la recepta",
+  "description": "Descripció breu i molt atractiva",
   "prepTimeMinutes": 10,
   "cookTimeMinutes": 15,
-  "servings": 2,
+  "servings": ${servingsCount},
   "calories": 450,
   "protein": 25,
   "carbs": 40,
   "fat": 15,
-  "tags": ["Ràpid", "Saludable"],
+  "tags": ["Casolà", "Saludable"],
   "ingredients": [
     {"name": "Ingredient", "amount": 100, "unit": "g", "category": "produce"}
   ],
@@ -252,7 +265,7 @@ IMPORTANT:
     "Pas 1", "Pas 2"
   ]
 }
-Categories possibles per als ingredients: "produce", "dairy", "meat", "bakery", "pantry", "frozen", "beverages", "other".
+Categories vàlides per als ingredients: "produce", "dairy", "meat", "bakery", "pantry", "frozen", "beverages", "other".
 `;
 
     const result = await model.generateContent({
@@ -268,11 +281,11 @@ Categories possibles per als ingredients: "produce", "dairy", "meat", "bakery", 
 
     return {
       id: `rec-ai-${Date.now()}`,
-      title: parsed.title || params.notes || "Recepta Recomanada",
-      description: parsed.description || "Recepta recomanada per la IA",
+      title: parsed.title || requestedDish || params.notes || "Recepta Recomanada",
+      description: parsed.description || "Recepta personalitzada generada per la IA",
       prepTimeMinutes: parsed.prepTimeMinutes || 10,
       cookTimeMinutes: parsed.cookTimeMinutes || 15,
-      servings: parsed.servings || 2,
+      servings: parsed.servings || servingsCount,
       calories: parsed.calories || 450,
       nutrition: {
         calories: parsed.calories || 450,
@@ -280,8 +293,8 @@ Categories possibles per als ingredients: "produce", "dairy", "meat", "bakery", 
         carbs: parsed.carbs || 45,
         fat: parsed.fat || 15,
       },
-      tags: parsed.tags || [params.mealType, params.dietaryPreference],
-      dietaryTags: [params.dietaryPreference],
+      tags: parsed.tags || [mealTypeStr, params.dietaryPreference || "mediterranean"],
+      dietaryTags: [params.dietaryPreference || "mediterranean"],
       source: "ai",
       ingredients: (parsed.ingredients || []).map((ing: any, i: number) => ({
         id: `ing-${i}-${Math.random().toString(36).substring(2, 6)}`,

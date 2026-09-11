@@ -12,6 +12,7 @@ export async function POST(req: NextRequest) {
       allergies = [],
       dislikes = [],
       notes = "",
+      recipes = [],
       customApiKey,
     } = body;
 
@@ -22,6 +23,7 @@ export async function POST(req: NextRequest) {
       allergies,
       dislikes,
       notes,
+      recipes,
       customApiKey,
     });
 

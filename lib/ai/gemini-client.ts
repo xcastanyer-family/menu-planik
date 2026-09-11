@@ -24,6 +24,7 @@ export async function generateWeeklyPlanWithAI(params: {
   allergies?: string[];
   dislikes?: string[];
   notes?: string;
+  recipes?: Recipe[];
   customApiKey?: string;
 }): Promise<WeeklyMealPlan> {
   const apiKey = getApiKey(params.customApiKey);
@@ -37,8 +38,17 @@ export async function generateWeeklyPlanWithAI(params: {
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
+    const userRecipesSummary =
+      params.recipes && params.recipes.length > 0
+        ? `\nRECEPTES DISPONIBLES AL RECEPTARI DE L'USUARI (PRIORITZA-LES I FES-LES SERVIR):\n` +
+          params.recipes
+            .slice(0, 20)
+            .map((r) => `- "${r.title}" (tags: ${r.tags?.join(", ") || ""})`)
+            .join("\n")
+        : "";
+
     const prompt = `
-Ets un xef i nutricionista expert. Genera un pla de menjars setmanal (de Dilluns a Diumenge) complet i equilibrat amb Esmorzar, Dinar i Sopar per a cada dia.
+Ets un xef i nutricionista expert de màxima precisió. Genera un pla de menjars setmanal (de Dilluns a Diumenge) complet i equilibrat amb Esmorzar, Dinar i Sopar per a cada dia.
 Tots els textos (títols, descripcions, ingredients, instruccions) han d'estar en CATALÀ.
 
 Preferències de l'usuari:
@@ -47,7 +57,14 @@ Preferències de l'usuari:
 - Nombre de persones (racions): ${params.householdSize}
 - Al·lèrgies a evitar estrictament: ${params.allergies?.join(", ") || "Cap"}
 - Ingredients no desitjats: ${params.dislikes?.join(", ") || "Cap"}
-- Notes especials: ${params.notes || "Cap"}
+- NOTES I INSTRUCCIONS ESPECÍFIQUES DE L'USUARI: ${params.notes || "Cap"}
+${userRecipesSummary}
+
+INSTRUCCIONS DE MÀXIMA OBLIGACIÓ:
+1. Si l'usuari a les NOTES demana un plat concret o freqüència (per exemple: "todos los dias macarrones", "tots els dies macarrons", "dilluns i dimecres salmó", etc.):
+   HAS D'INCLOURE AQUEST PLAT EXACTAMENT EN TOTS ELS DIES/ÀPATS INDICATS.
+2. Si un plat demanat coincideix amb una recepta existent del receptari de l'usuari (ex: macarrons), UTILITZA EXACTAMENT aquest títol.
+3. No ignoris mai el que l'usuari ha demanat a les notes.
 
 Respon EXCLUSIVAMENT amb un JSON vàlid estructurat de la següent manera, sense markdown ni text addicional:
 {
@@ -105,7 +122,10 @@ Cada ingredient ha de tenir una "category" escollida entre: "produce", "dairy", 
       },
     });
 
-    const responseText = result.response.text();
+    let responseText = result.response.text().trim();
+    if (responseText.startsWith("```")) {
+      responseText = responseText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+    }
     const parsed = JSON.parse(responseText);
 
     const slots: MealSlot[] = [];
@@ -120,8 +140,13 @@ Cada ingredient ha de tenir una "category" escollida entre: "produce", "dairy", 
         const meal = dayData[mType];
         if (!meal) return;
 
-        const recipeId = `ai-rec-${Math.random().toString(36).substring(2, 9)}`;
-        const recipe: Recipe = {
+        // Check if meal title matches an existing user recipe
+        const matchedExisting = params.recipes?.find(
+          (r) => r.title.trim().toLowerCase() === meal.title.trim().toLowerCase()
+        );
+
+        const recipeId = matchedExisting?.id || `ai-rec-${Math.random().toString(36).substring(2, 9)}`;
+        const recipe: Recipe = matchedExisting || {
           id: recipeId,
           title: meal.title,
           description: meal.description || `Deliciosa opció per a ${mType}`,
@@ -369,18 +394,101 @@ function generateFallbackPlan(params: {
   dietaryPreference: DietaryPreference;
   targetCalories: number;
   householdSize: number;
+  allergies?: string[];
+  dislikes?: string[];
+  notes?: string;
+  recipes?: Recipe[];
 }): WeeklyMealPlan {
   const days: DayOfWeek[] = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
   const slots: MealSlot[] = [];
 
-  const breakfasts = INITIAL_RECIPES.filter((r) => r.tags.includes("Esmorzar") || r.tags.includes("Brunch"));
-  const mains = INITIAL_RECIPES.filter((r) => !r.tags.includes("Esmorzar") && !r.tags.includes("Brunch"));
+  // Build unified recipe catalog
+  const catalog = [...(params.recipes || []), ...INITIAL_RECIPES];
+  const uniqueCatalog: Recipe[] = [];
+  const seenKeys = new Set<string>();
+  for (const r of catalog) {
+    const key = r.title.trim().toLowerCase();
+    if (!seenKeys.has(key)) {
+      seenKeys.add(key);
+      uniqueCatalog.push(r);
+    }
+  }
+
+  // Parse notes to detect dishes requested and frequencies
+  const rawNotes = (params.notes || "").trim();
+  const normNotes = rawNotes
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  // Check frequency
+  const isEveryDay = /(?:tots?\s+els?\s+dies|todos?\s+los?\s+dias|cada\s+dia|diari|diario|sempre|siempre|all\s+days|every\s+day)/i.test(normNotes);
+
+  // Check target meal type
+  let targetMealType: "lunch" | "dinner" | "breakfast" | "both_lunch_dinner" = "lunch";
+  if (/\b(?:sopar|sopars|cena|cenas|dinner)\b/i.test(normNotes)) {
+    targetMealType = "dinner";
+  } else if (/\b(?:esmorzar|esmorzars|desayuno|desayunos|breakfast)\b/i.test(normNotes)) {
+    targetMealType = "breakfast";
+  } else if (/\b(?:dinar\s+i\s+sopar|comida\s+y\s+cena|ambdos|ambdós)\b/i.test(normNotes)) {
+    targetMealType = "both_lunch_dinner";
+  }
+
+  // Find requested recipe
+  let requestedRecipe: Recipe | null = null;
+
+  if (normNotes.length > 0) {
+    // 1. Direct match by words from title in user catalog first
+    for (const r of uniqueCatalog) {
+      const normTitle = r.title
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+      const words = normTitle.split(/\s+/).filter((w) => w.length >= 4);
+      if (words.some((w) => normNotes.includes(w))) {
+        requestedRecipe = r;
+        break;
+      }
+    }
+
+    // 2. Keyword match (e.g. "macarrones", "macarrons", "pasta", "arros")
+    if (!requestedRecipe) {
+      if (normNotes.includes("macarr") || normNotes.includes("pasta")) {
+        const pastaRec = uniqueCatalog.find((r) => {
+          const t = r.title.toLowerCase();
+          return t.includes("macarr") || t.includes("pasta") || t.includes("espagueti");
+        });
+        if (pastaRec) {
+          requestedRecipe = pastaRec;
+        } else {
+          requestedRecipe = generateSmartRecipeFromPrompt({
+            notes: "Macarrons casolans amb salsa de tomàquet i carn",
+            dietaryPreference: params.dietaryPreference,
+          });
+        }
+      } else {
+        requestedRecipe = generateSmartRecipeFromPrompt({
+          notes: rawNotes,
+          dietaryPreference: params.dietaryPreference,
+        });
+      }
+    }
+  }
+
+  // Filter remaining recipes
+  const breakfasts = uniqueCatalog.filter(
+    (r) => r.tags.some((t) => t.toLowerCase().includes("esmorzar") || t.toLowerCase().includes("brunch") || t.toLowerCase().includes("dolç"))
+  );
+  const fallbackBreakfasts = breakfasts.length > 0 ? breakfasts : INITIAL_RECIPES.slice(3, 4);
+
+  const mains = uniqueCatalog.filter(
+    (r) => !r.tags.some((t) => t.toLowerCase().includes("esmorzar") || t.toLowerCase().includes("brunch"))
+  );
+  const fallbackMains = mains.length > 0 ? mains : INITIAL_RECIPES;
 
   days.forEach((day, index) => {
-    const bRecipe = breakfasts[index % breakfasts.length] || INITIAL_RECIPES[3];
-    const lRecipe = mains[(index * 2) % mains.length] || INITIAL_RECIPES[0];
-    const dRecipe = mains[(index * 2 + 1) % mains.length] || INITIAL_RECIPES[1];
-
+    // Breakfast
+    const bRecipe = fallbackBreakfasts[index % fallbackBreakfasts.length];
     slots.push({
       id: `slot-${day}-b-${index}`,
       day: day,
@@ -388,6 +496,15 @@ function generateFallbackPlan(params: {
       recipeId: bRecipe.id,
       recipe: bRecipe,
     });
+
+    // Lunch
+    let lRecipe: Recipe;
+    if (requestedRecipe && (isEveryDay || normNotes.includes("dinar") || normNotes.includes("comida") || (!normNotes.includes("sopar") && !normNotes.includes("cena")))) {
+      lRecipe = requestedRecipe;
+    } else {
+      lRecipe = fallbackMains[(index * 2) % fallbackMains.length];
+    }
+
     slots.push({
       id: `slot-${day}-l-${index}`,
       day: day,
@@ -395,6 +512,17 @@ function generateFallbackPlan(params: {
       recipeId: lRecipe.id,
       recipe: lRecipe,
     });
+
+    // Dinner
+    let dRecipe: Recipe;
+    if (requestedRecipe && (targetMealType === "dinner" || targetMealType === "both_lunch_dinner")) {
+      dRecipe = requestedRecipe;
+    } else {
+      // Pick a dinner different from lunch
+      const candidates = fallbackMains.filter((m) => m.id !== lRecipe.id);
+      dRecipe = (candidates.length > 0 ? candidates : fallbackMains)[(index * 2 + 1) % (candidates.length || fallbackMains.length)];
+    }
+
     slots.push({
       id: `slot-${day}-d-${index}`,
       day: day,

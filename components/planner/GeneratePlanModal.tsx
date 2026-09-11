@@ -5,6 +5,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Input, Select, Textarea } from "@/components/ui/Input";
 import { DietaryPreference, WeeklyMealPlan, UserPreferences } from "@/types";
+import { LocalStore } from "@/lib/storage/local-store";
 import { Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
@@ -43,6 +44,8 @@ export const GeneratePlanModal: React.FC<GeneratePlanModalProps> = ({
         .map((s) => s.trim())
         .filter(Boolean);
 
+      const userRecipes = typeof window !== "undefined" ? LocalStore.getRecipes() : [];
+
       const res = await fetch("/api/ai/generate-plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -53,6 +56,7 @@ export const GeneratePlanModal: React.FC<GeneratePlanModalProps> = ({
           allergies,
           dislikes,
           notes,
+          recipes: userRecipes,
           customApiKey: currentPreferences.geminiApiKey,
         }),
       });

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   WeeklyMealPlan,
   Recipe,
@@ -70,6 +70,59 @@ export default function PlannerPage() {
       updated[d] = nextVal;
     });
     setExpandedBreakfastDays(updated);
+  };
+
+  // Mobile swipe gestures & active tab auto-scroll
+  const activeDayTabRef = useRef<HTMLButtonElement>(null);
+  const touchStartCoords = useRef<{ x: number; y: number; time: number } | null>(null);
+  const [swipeAnimation, setSwipeAnimation] = useState<"left" | "right" | null>(null);
+
+  useEffect(() => {
+    if (activeDayTabRef.current) {
+      activeDayTabRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+        inline: "center",
+      });
+    }
+  }, [selectedDay]);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length !== 1) return;
+    touchStartCoords.current = {
+      x: e.touches[0].clientX,
+      y: e.touches[0].clientY,
+      time: Date.now(),
+    };
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!touchStartCoords.current) return;
+    const touch = e.changedTouches[0];
+    const deltaX = touch.clientX - touchStartCoords.current.x;
+    const deltaY = touch.clientY - touchStartCoords.current.y;
+    const elapsed = Date.now() - touchStartCoords.current.time;
+    touchStartCoords.current = null;
+
+    // Detect horizontal swipe (horizontal distance must dominate vertical distance)
+    const isHorizontal = Math.abs(deltaX) > Math.abs(deltaY) * 1.2;
+    const isFastEnough = elapsed < 650;
+    const isLongEnough = Math.abs(deltaX) > 40;
+
+    if (isHorizontal && isLongEnough && isFastEnough) {
+      const currentIndex = DAYS_LIST.indexOf(selectedDay);
+      if (deltaX < 0) {
+        // Swiped left (dragged leftwards) -> go to next day
+        setSwipeAnimation("left");
+        const nextDay = DAYS_LIST[(currentIndex + 1) % 7];
+        setSelectedDay(nextDay);
+      } else {
+        // Swiped right (dragged rightwards) -> go to previous day
+        setSwipeAnimation("right");
+        const prevDay = DAYS_LIST[(currentIndex - 1 + 7) % 7];
+        setSelectedDay(prevDay);
+      }
+    }
   };
 
   useEffect(() => {
@@ -225,6 +278,7 @@ export default function PlannerPage() {
           return (
             <button
               key={day}
+              ref={isSelected ? activeDayTabRef : undefined}
               onClick={() => setSelectedDay(day)}
               className={`px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition ${
                 isSelected
@@ -326,19 +380,37 @@ export default function PlannerPage() {
 
       {/* Mobile Single Day View */}
       <div className="lg:hidden space-y-4">
-        <div className="bg-white dark:bg-zinc-900 rounded-2xl p-4 border border-zinc-200 dark:border-zinc-800 space-y-4">
+        <div
+          key={selectedDay}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          className={`bg-white dark:bg-zinc-900 rounded-2xl p-4 border border-zinc-200 dark:border-zinc-800 space-y-4 touch-pan-y select-none transition-all duration-200 ${
+            swipeAnimation === "left"
+              ? "animate-in slide-in-from-right-4 fade-in duration-200"
+              : swipeAnimation === "right"
+              ? "animate-in slide-in-from-left-4 fade-in duration-200"
+              : ""
+          }`}
+        >
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-zinc-900 dark:text-white">
-              {formatDayName(selectedDay)}
-            </h2>
+            <div>
+              <h2 className="text-lg font-bold text-zinc-900 dark:text-white">
+                {formatDayName(selectedDay)}
+              </h2>
+              <p className="text-[11px] text-zinc-400 font-medium">
+                👆 Llisca amb el dit per canviar de dia
+              </p>
+            </div>
             <div className="flex items-center gap-1">
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => {
+                  setSwipeAnimation("right");
                   const idx = DAYS_LIST.indexOf(selectedDay);
                   setSelectedDay(DAYS_LIST[(idx - 1 + 7) % 7]);
                 }}
+                title="Dia anterior"
               >
                 <ChevronLeft className="w-4 h-4" />
               </Button>
@@ -346,9 +418,11 @@ export default function PlannerPage() {
                 variant="ghost"
                 size="sm"
                 onClick={() => {
+                  setSwipeAnimation("left");
                   const idx = DAYS_LIST.indexOf(selectedDay);
                   setSelectedDay(DAYS_LIST[(idx + 1) % 7]);
                 }}
+                title="Dia següent"
               >
                 <ChevronRight className="w-4 h-4" />
               </Button>

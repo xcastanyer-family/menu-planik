@@ -249,9 +249,19 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
                   <span className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/50 px-2 py-0.5 rounded-md mb-1.5">
                     <Sparkles className="w-3 h-3" /> Generada per la IA
                   </span>
-                  <h3 className="text-lg font-bold text-zinc-900 dark:text-white leading-tight">
-                    {generatedRecipe.title}
-                  </h3>
+                  <div className="mt-1">
+                    <label className="text-[10px] uppercase font-bold text-emerald-800 dark:text-emerald-300 block mb-1">
+                      Títol creat per la IA (pots retocar-lo si vols):
+                    </label>
+                    <input
+                      type="text"
+                      value={generatedRecipe.title}
+                      onChange={(e) =>
+                        setGeneratedRecipe({ ...generatedRecipe, title: e.target.value })
+                      }
+                      className="w-full text-base sm:text-lg font-bold text-zinc-900 dark:text-white bg-white dark:bg-zinc-900 px-3 py-1.5 rounded-xl border border-emerald-300 dark:border-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 shadow-xs"
+                    />
+                  </div>
                   {generatedRecipe.description && (
                     <p className="text-xs text-zinc-600 dark:text-zinc-300 mt-1 leading-relaxed">
                       {generatedRecipe.description}
@@ -493,17 +503,17 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
         ) : (
           /* VIEW 3: AI SPECIFICATIONS FORM (DEFAULT) */
           <form onSubmit={handleAiGenerate} className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
-            {/* Dish Name */}
+            {/* Dish Idea / Concept */}
             <div>
               <Input
-                label="Nom o idea del plat *"
-                placeholder="ex. Arròs negre amb sèpia, Salmó al forn amb verdures, Risotto de ceps..."
+                label="Idea o concepte del plat *"
+                placeholder="ex. 'Vull un arròs melós amb marisc', 'Alguna cosa amb pollastre i salsa cremosa', 'Pasta ràpida amb tomàquet fresca'..."
                 value={dishName}
                 onChange={(e) => setDishName(e.target.value)}
                 required
               />
-              <p className="text-[11px] text-zinc-400 mt-1">
-                Pots posar el nom exacte d&apos;un plat tradicional o la teva pròpia idea culinària.
+              <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1">
+                💡 Posa aquí la teva idea, desig o combinació que et vingui de gust; la IA trobarà la recepta adequada i en crearà el títol professional.
               </p>
             </div>
 

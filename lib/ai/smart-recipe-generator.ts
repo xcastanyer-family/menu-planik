@@ -141,6 +141,110 @@ function detectArchetype(text: string): "rice" | "pasta" | "eggs" | "fish" | "po
   return "general";
 }
 
+function generateCulinaryTitle(prompt: string, archetype: string): string {
+  const lower = prompt.toLowerCase();
+
+  switch (archetype) {
+    case "rice":
+      if (lower.includes("negre") || lower.includes("negro") || lower.includes("tinta")) {
+        return "Arròs negre de la costa amb calamar i allioli";
+      }
+      if (lower.includes("risotto") || lower.includes("ceps") || lower.includes("bolet") || lower.includes("setas")) {
+        return "Risotto cremós de bolets de temporada amb parmesà";
+      }
+      if (lower.includes("marisc") || lower.includes("marisco") || lower.includes("gamba") || lower.includes("peix")) {
+        return "Arròs mariner tradicional amb marisc fresc";
+      }
+      if (lower.includes("pollastre") || lower.includes("pollo") || lower.includes("carn")) {
+        return "Arròs melós de camp amb pollastre i verdures";
+      }
+      return "Arròs tradicional de la casa amb sofregit de l'horta";
+
+    case "pasta":
+      if (lower.includes("bolonyesa") || lower.includes("boloñesa") || lower.includes("bolognese") || lower.includes("carn")) {
+        return "Macarrons tradicionals amb sofregit de carn a la bolonyesa";
+      }
+      if (lower.includes("tonyina") || lower.includes("atun") || lower.includes("atún")) {
+        return "Pasta mediterrània amb tomàquet casolà i tonyina";
+      }
+      if (lower.includes("carbonara") || lower.includes("formatge") || lower.includes("queso")) {
+        return "Tallarines cremoses amb salsa suau de formatges fins";
+      }
+      if (lower.includes("pesto")) {
+        return "Espaguetis al pesto genovès amb pinyons torrats";
+      }
+      return "Pasta casolana amb salsa de tomàquet i herbes fresques";
+
+    case "fish":
+      if (lower.includes("salmo") || lower.includes("salmó") || lower.includes("salmon")) {
+        return "Suprema de salmó a la planxa amb llimona i anet fresc";
+      }
+      if (lower.includes("bacalla") || lower.includes("bacallà") || lower.includes("bacalao")) {
+        return "Bacallà confitat sobre llit de patates i pebrots";
+      }
+      if (lower.includes("lluc") || lower.includes("lluç") || lower.includes("merluza")) {
+        return "Filet de lluç a la planxa amb all i julivert fresc";
+      }
+      if (lower.includes("sipia") || lower.includes("sípia") || lower.includes("calamar") || lower.includes("sepia")) {
+        return "Sípia estofada amb pèsols i picada catalana";
+      }
+      return "Peix de llotja al forn amb guarnició de verdures de temporada";
+
+    case "poultry":
+      return "Pit de pollastre marinat a les herbes aromàtiques amb guarnició";
+
+    case "meat":
+      if (lower.includes("hamburguesa") || lower.includes("burger")) {
+        return "Hamburguesa gourmet de vedella amb formatge fos i ceba";
+      }
+      if (lower.includes("mandonguilles") || lower.includes("albondigas")) {
+        return "Mandonguilles casolanes amb salsa de tomàquet i pèsols";
+      }
+      return "Saltat tendre de carn amb verdures de l'horta";
+
+    case "eggs":
+      if (lower.includes("patata") || lower.includes("patates") || lower.includes("patatas")) {
+        return "Truita de patates tradicional ben suculenta";
+      }
+      return "Remenat cremós d'ous de pagès amb verdures fresques";
+
+    case "soup":
+      if (lower.includes("gaspatxo") || lower.includes("gazpacho")) {
+        return "Gaspatxo andalús tradicional ben fresc";
+      }
+      return "Crema suau de verdures de temporada amb crostons cruixents";
+
+    case "legumes":
+      if (lower.includes("llenties") || lower.includes("lentejas")) {
+        return "Estofat casolà de llenties pardines amb verdures";
+      }
+      if (lower.includes("cigrons") || lower.includes("garbanzos")) {
+        return "Cigrons saltats a la catalana amb espinacs";
+      }
+      return "Guisat tradicional de llegums amb sofregit";
+
+    case "salad":
+      return "Amanida fresca de temporada amb vinagreta d'oli d'oliva verge";
+
+    case "pizza":
+      return "Pizza artesana cruixent amb tomàquet natural i mozzarella";
+
+    case "breakfast":
+      return "Bol energètic de civada amb fruita fresca i llavors";
+
+    case "vegetable":
+      return "Wok de verdures fresques saltejades amb oli d'oliva i soja";
+
+    default: {
+      const cleaned = cleanTitle(prompt);
+      if (cleaned.length > 0 && cleaned.length < 35 && !/\b(?:vull|algo|cosa|recepta|idea|menjar|fer)\b/i.test(cleaned)) {
+        return `${cleaned} a l'estil mediterrani`;
+      }
+      return "Plat casolà mediterrani de temporada";
+    }
+  }
+}
+
 export function generateSmartRecipeFromPrompt(params: {
   mealType?: MealType;
   day?: DayOfWeek;
@@ -153,8 +257,8 @@ export function generateSmartRecipeFromPrompt(params: {
   excludeIngredients?: string[];
 }): Recipe {
   const prompt = params.dishName?.trim() || params.notes?.trim() || "Recepta casolana mediterrània";
-  const title = params.dishName?.trim() ? cleanTitle(params.dishName) : cleanTitle(prompt);
-  const archetype = detectArchetype(`${title} ${prompt} ${params.notes || ""}`);
+  const archetype = detectArchetype(`${prompt} ${params.notes || ""}`);
+  const title = generateCulinaryTitle(prompt, archetype);
   const lower = `${title} ${prompt} ${params.notes || ""} ${params.includeIngredients?.join(" ") || ""}`.toLowerCase();
   const servings = params.servings || 2;
   const ratio = servings / 2;

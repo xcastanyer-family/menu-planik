@@ -226,14 +226,16 @@ export async function suggestMealAlternativeWithAI(params: {
 
     const mealTypeStr = params.mealType || "lunch";
     const servingsCount = params.servings || 2;
-    const requestedDish = params.dishName?.trim() || "";
-    const requestedNotes = params.notes?.trim() || "";
+    const userIdea = params.dishName?.trim() || params.notes?.trim() || "Plat equilibrat";
+    const additionalNotes = params.notes?.trim() && params.notes !== userIdea ? params.notes.trim() : "";
 
     const prompt = `
 Ets un xef d'alta cuina i assistent culinari de màxima precisió.
-Crea una recepta apetitosa, realista i detallada adaptant-te ESTRICTAMENT a les següents especificacions de l'usuari:
-${requestedDish ? `- Plat sol·licitat / Títol desitjat: "${requestedDish}"` : ""}
-${requestedNotes ? `- Indicacions / Especificacions addicionals: "${requestedNotes}"` : ""}
+L'usuari t'ha proporcionat la següent IDEA O CONCEPTE per a un plat:
+"${userIdea}"
+${additionalNotes ? `- Especificacions o preferències addicionals: "${additionalNotes}"` : ""}
+
+Context de l'àpat:
 - Tipus d'àpat: "${mealTypeStr}"
 - Racions: ${servingsCount} persones
 - Preferència alimentària: "${params.dietaryPreference || "mediterranean"}"
@@ -241,14 +243,16 @@ ${params.maxTimeMinutes ? `- Temps màxim disponible: aprox ${params.maxTimeMinu
 ${params.includeIngredients && params.includeIngredients.length > 0 ? `- Ingredients que CAL incloure obligatòriament: ${params.includeIngredients.join(", ")}` : ""}
 ${params.excludeIngredients && params.excludeIngredients.length > 0 ? `- Ingredients o al·lèrgens a EVITAR estrictament: ${params.excludeIngredients.join(", ")}` : ""}
 
-IMPORTANT:
-1. Tot el contingut ha d'estar escrit en CATALÀ.
-2. Si l'usuari indica un plat o ingredients concrets (ex: macarrons, arròs negre, salmó, etc.), la recepta ha d'adaptar-se de manera fidel a totes les especificacions donades.
-3. Quantitats realistes en grams, ml o unitats ajustades per a ${servingsCount} persones.
-4. Instruccions clares, pas a pas, fàcils de seguir.
-5. Respon EXCLUSIVAMENT amb un JSON vàlid estructurat exactament així:
+REGLES DE MÀXIMA IMPORTÀNCIA PER AL TÍTOL ("title"):
+1. L'usuari ha escrit la seva IDEA O DESIG (pot haver posat coses com: "algo con pollo y arroz", "pasta con tomate", "vull salmó per sopar", "recepta fàcil amb ous", "sopar ràpid", etc.).
+2. NO COPIÏS MAI LA FRASE DE L'USUARI COM A TÍTOL!
+3. Tu com a xef has de TROBAR la millor recepta i CREAR UN TÍTOL GASTRONÒMIC PROFESSIONAL I APETITÓS en català (per exemple: "Arròs melós de pollastre amb verdures de l'horta", "Tallarines fresques amb sofregit casolà de tomàquet i alfàbrega", "Suprema de salmó a la planxa amb guarnició cítrica", "Truita de patates tradicional ben suculenta").
+4. Tot el contingut (títol, descripció, ingredients, passos) ha d'estar escrit en CATALÀ.
+5. Quantitats realistes en grams, ml o unitats ajustades exactament per a ${servingsCount} persones.
+6. Instruccions clares, pas a pas, fàcils de seguir.
+7. Respon EXCLUSIVAMENT amb un JSON vàlid estructurat exactament així:
 {
-  "title": "Títol exacte i atractiu de la recepta",
+  "title": "Títol gastronòmic professional creat per tu (NO el text de l'usuari)",
   "description": "Descripció breu i molt atractiva",
   "prepTimeMinutes": 10,
   "cookTimeMinutes": 15,
@@ -279,9 +283,15 @@ Categories vàlides per als ingredients: "produce", "dairy", "meat", "bakery", "
     }
     const parsed = JSON.parse(rawText);
 
+    // Ensure title is an authentic gastronomic title, never the user's raw prompt
+    let finalTitle = parsed.title?.trim();
+    if (!finalTitle || finalTitle.toLowerCase() === userIdea.toLowerCase()) {
+      finalTitle = generateSmartRecipeFromPrompt({ ...params, dishName: userIdea }).title;
+    }
+
     return {
       id: `rec-ai-${Date.now()}`,
-      title: parsed.title || requestedDish || params.notes || "Recepta Recomanada",
+      title: finalTitle,
       description: parsed.description || "Recepta personalitzada generada per la IA",
       prepTimeMinutes: parsed.prepTimeMinutes || 10,
       cookTimeMinutes: parsed.cookTimeMinutes || 15,

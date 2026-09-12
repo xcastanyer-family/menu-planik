@@ -64,7 +64,14 @@ export const GeneratePlanModal: React.FC<GeneratePlanModalProps> = ({
       const data = await res.json();
       if (data.success && data.plan) {
         onPlanGenerated(data.plan);
-        toast.success("Nou menú setmanal generat amb èxit!");
+        const filledSlots = data.plan.slots.filter((s: any) => s.recipeId);
+        if (filledSlots.length === 0) {
+          toast.warning("No s'han trobat receptes a la base de dades. Els àpats s'han deixat en blanc.");
+        } else if (filledSlots.length < data.plan.slots.length) {
+          toast.success(`Menú generat amb les receptes existents (${filledSlots.length} àpats assignats; la resta en blanc).`);
+        } else {
+          toast.success("Nou menú setmanal generat amb èxit!");
+        }
         onClose();
       } else {
         toast.error(data.error || "No s'ha pogut generar el menú setmanal.");

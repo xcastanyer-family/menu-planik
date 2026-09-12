@@ -65,3 +65,4 @@ drop policy if exists "Eliminació de productes per a tothom autenticat" on publ
 create policy "Eliminació de productes per a tothom autenticat"
   on public.products for delete
   using (true);
+

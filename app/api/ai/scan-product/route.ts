@@ -89,7 +89,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // 1. Si ja tenim codi de barres numèric directe, intentem Open Food Facts primer
+    // 1. Si ja tenim codi de barres numèric, intentem Open Food Facts directament (no requereix Gemini!)
     if (barcode) {
       const offResult = await fetchOpenFoodFacts(barcode);
       if (offResult) {
@@ -97,10 +97,10 @@ export async function POST(request: Request) {
       }
     }
 
-    // 2. Anàlisi multimodal amb Gemini 1.5 Flash
+    // 2. Anàlisi multimodal amb Gemini 1.5 Flash si hi ha clau disponible
     const apiKey = getApiKey(customApiKey);
     if (!apiKey) {
-      // Fallback si no hi ha clau de Gemini
+      // Si tenim codi de barres però no era a Open Food Facts, retornem plantilla de producte amb el codi
       if (barcode) {
         return NextResponse.json({
           success: true,
@@ -113,12 +113,15 @@ export async function POST(request: Request) {
           },
         });
       }
+
+      // Si no tenim codi de barres ni clau Gemini
       return NextResponse.json(
         {
           success: false,
-          error: "No s'ha configurat la clau GEMINI_API_KEY per analitzar la imatge.",
+          needBarcodeNumber: true,
+          error: "No s'ha pogut llegir el codi de barres automàticament de la fotografia. Introdueix el número sota les barres (ex: 8410100...) o configura la teva clau Gemini a Perfil.",
         },
-        { status: 500 }
+        { status: 200 }
       );
     }
 
@@ -247,3 +250,4 @@ Respon EXCLUSIVAMENT amb un objecte JSON vàlid amb aquest format:
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
 }
+

@@ -251,6 +251,7 @@ export function generateSmartRecipeFromPrompt(params: {
   dietaryPreference?: DietaryPreference;
   notes?: string;
   dishName?: string;
+  complexity?: "simple" | "complex";
   servings?: number;
   maxTimeMinutes?: number;
   includeIngredients?: string[];
@@ -572,6 +573,8 @@ export function generateSmartRecipeFromPrompt(params: {
     },
     tags,
     dietaryTags: [dietaryPreference],
+    complexity: params.complexity || (prepTimeMinutes + cookTimeMinutes > 35 ? "complex" : "simple"),
+    foodIcon: archetype === "pasta" ? "pasta" : archetype === "rice" ? "rice" : archetype === "fish" ? "fish" : archetype === "meat" || archetype === "poultry" ? "meat" : archetype === "legumes" ? "legumes" : archetype === "salad" ? "salad" : archetype === "soup" ? "soup" : archetype === "eggs" ? "eggs" : archetype === "breakfast" ? "breakfast" : "other",
     source: "ai",
     ingredients: baseIngredients,
     instructions,

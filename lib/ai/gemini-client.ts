@@ -530,6 +530,82 @@ function generateFallbackPlan(params: {
 
 // --- URL RECIPE EXTRACTION HELPERS & FUNCTION ---
 
+function cleanSlug(urlStr: string): string {
+  try {
+    const u = new URL(urlStr);
+    const parts = u.pathname.split("/").filter(Boolean);
+    for (let i = parts.length - 1; i >= 0; i--) {
+      let p = parts[i].replace(/\.html?$/i, "").replace(/^\d+[-_]?/, "").replace(/[-_]?\d+$/, "");
+      if (p.length > 3 && !/^\d+$/.test(p)) {
+        p = p.replace(/[-_]+/g, " ");
+        p = p.replace(/^(receta|recipe|recetas|com|de|facil|dels?|les?|como[- ]hacer)\s+/gi, "").trim();
+        if (p.length > 3) return p;
+      }
+    }
+  } catch {}
+  return "";
+}
+
+interface PageMeta {
+  pageTitle: string;
+  ogTitle: string;
+  ogDesc: string;
+  h1: string;
+  slug: string;
+  bestTitle: string;
+  isPasta: boolean;
+  isRice: boolean;
+  isMeat: boolean;
+  isFish: boolean;
+  isSavoury: boolean;
+}
+
+function extractPageMetadata(html: string, urlStr: string): PageMeta {
+  const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  let pageTitle = titleMatch ? titleMatch[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim() : "";
+  pageTitle = pageTitle.split(/\s*[-|–—»•]\s*/)[0].trim();
+
+  const ogTitleMatch =
+    html.match(/<meta[^>]*property=["']og:title["'][^>]*content=["']([^"']+)["']/i) ||
+    html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:title["']/i);
+  const ogTitle = ogTitleMatch ? ogTitleMatch[1].trim() : "";
+
+  const ogDescMatch =
+    html.match(/<meta[^>]*property=["']og:description["'][^>]*content=["']([^"']+)["']/i) ||
+    html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:description["']/i) ||
+    html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i);
+  const ogDesc = ogDescMatch ? ogDescMatch[1].trim() : "";
+
+  const h1Match = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+  const h1 = h1Match ? h1Match[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim() : "";
+
+  const slug = cleanSlug(urlStr);
+  const bestTitle = h1 || ogTitle || pageTitle || slug;
+
+  const targetTokens = `${bestTitle} ${slug}`
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  const isPasta = /macarr|pasta|espaguet|tallarin|penne|fusilli|fideu|noodle|lasany|lasana|canelo|canelon/i.test(
+    targetTokens
+  );
+  const isRice = /arros|arroz|paella|risotto/i.test(targetTokens);
+  const isMeat =
+    /carn|carne|pollastre|pollo|vedella|ternera|porc|cerdo|hamburg|botifarra|albondiga|mandonguilla/i.test(
+      targetTokens
+    );
+  const isFish = /peix|pescado|salmo|merluza|lluc|bacalla|tonyina|atun|marisc|gamba/i.test(targetTokens);
+  const isSavoury =
+    isPasta ||
+    isRice ||
+    isMeat ||
+    isFish ||
+    /sopa|crema|llegum|legumbre|amanida|ensalada|guiso|estofat/i.test(targetTokens);
+
+  return { pageTitle, ogTitle, ogDesc, h1, slug, bestTitle, isPasta, isRice, isMeat, isFish, isSavoury };
+}
+
 function extractJsonLdRecipes(html: string): any[] {
   const jsonLdRegex = /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
   const recipes: any[] = [];
@@ -548,30 +624,131 @@ function extractJsonLdRecipes(html: string): any[] {
         }
       }
     } catch {
-      // ignore JSON parse error in individual script tag
+      // ignore JSON parse error
     }
   }
   return recipes;
 }
 
-function extractCleanPageText(html: string): string {
-  let text = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, " ");
-  text = text.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, " ");
-  text = text.replace(/<svg\b[^<]*(?:(?!<\/svg>)<[^<]*)*<\/svg>/gi, " ");
-  text = text.replace(/<!--[\s\S]*?-->/g, " ");
-  text = text.replace(/<\/(p|div|h1|h2|h3|h4|h5|h6|li|tr|article|section)>/gi, "\n");
-  text = text.replace(/<br\s*[\/]?>/gi, "\n");
-  text = text.replace(/<[^>]+>/g, " ");
-  text = text
+function selectBestJsonLdRecipe(recipes: any[], meta: PageMeta, targetUrl: string): any | null {
+  if (!recipes || recipes.length === 0) return null;
+
+  const targetTokens = `${meta.bestTitle} ${meta.slug}`
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .split(/[^a-z0-9]+/)
+    .filter((w) => w.length >= 3);
+
+  let bestRecipe = null;
+  let maxScore = -999999;
+
+  for (const r of recipes) {
+    let score = 0;
+    const rName = (r.name || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const rDesc = (r.description || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const rUrl = (r.url || r["@id"] || "").toLowerCase();
+
+    if (rUrl && targetUrl.toLowerCase().includes(rUrl)) {
+      score += 200;
+    }
+
+    for (const tok of targetTokens) {
+      if (rName.includes(tok)) score += 40;
+      if (rDesc.includes(tok)) score += 15;
+    }
+
+    if (Array.isArray(r.recipeIngredient) && r.recipeIngredient.length > 0) {
+      score += 20 + Math.min(r.recipeIngredient.length, 10);
+    }
+    if (Array.isArray(r.recipeInstructions) && r.recipeInstructions.length > 0) {
+      score += 20;
+    }
+
+    // Heavy penalty for dessert recipes when target is savoury
+    if (meta.isSavoury) {
+      if (/pastel|tarta|bizcocho|torta|postre|dessert|cake|cookie|galleta|dulce|flan/i.test(rName)) {
+        score -= 500;
+      }
+    }
+
+    if (score > maxScore) {
+      maxScore = score;
+      bestRecipe = r;
+    }
+  }
+
+  return maxScore > -100 ? bestRecipe : null;
+}
+
+function extractSmartArticleContent(html: string): string {
+  const cleaned = html
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, " ")
+    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, " ")
+    .replace(/<svg\b[^<]*(?:(?!<\/svg>)<[^<]*)*<\/svg>/gi, " ")
+    .replace(/<!--[\s\S]*?-->/g, " ")
+    .replace(/<nav\b[^<]*(?:(?!<\/nav>)<[^<]*)*<\/nav>/gi, " ")
+    .replace(/<header\b[^<]*(?:(?!<\/header>)<[^<]*)*<\/header>/gi, " ")
+    .replace(/<footer\b[^<]*(?:(?!<\/footer>)<[^<]*)*<\/footer>/gi, " ")
+    .replace(/<aside\b[^<]*(?:(?!<\/aside>)<[^<]*)*<\/aside>/gi, " ")
+    .replace(/<form\b[^<]*(?:(?!<\/form>)<[^<]*)*<\/form>/gi, " ");
+
+  const articleMatch = cleaned.match(/<article[^>]*>([\s\S]*?)<\/article>/i);
+  const mainMatch = cleaned.match(/<main[^>]*>([\s\S]*?)<\/main>/i);
+  const targetBlock =
+    articleMatch && articleMatch[1].length > 400
+      ? articleMatch[1]
+      : mainMatch && mainMatch[1].length > 400
+      ? mainMatch[1]
+      : cleaned;
+
+  let text = targetBlock
+    .replace(/<\/(p|div|h1|h2|h3|h4|h5|h6|li|tr|article|section)>/gi, "\n")
+    .replace(/<br\s*[\/]?>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
     .replace(/&nbsp;/g, " ")
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'");
-  text = text.replace(/[ \t]+/g, " ");
-  text = text.replace(/\n\s*\n+/g, "\n\n");
-  return text.trim().slice(0, 15000);
+    .replace(/&#39;/g, "'")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n\s*\n+/g, "\n\n");
+
+  return text.trim().slice(0, 12000);
+}
+
+function extractHtmlIngredientsAndSteps(html: string): { ingredients: string[]; steps: string[] } {
+  const ingredients: string[] = [];
+  const steps: string[] = [];
+
+  const ingSectionMatch = html.match(
+    /(?:<h\d[^>]*>[^<]*(?:Ingredientes|Ingredients)[^<]*<\/h\d>|<strong[^>]*>[^<]*(?:Ingredientes|Ingredients)[^<]*<\/strong>|class=["'][^"']*(?:recipe-ingredients|ingredients|ingredientes)[^"']*["'])[\s\S]*?(?:<ul[^>]*>([\s\S]*?)<\/ul>|<ol[^>]*>([\s\S]*?)<\/ol>)/i
+  );
+  if (ingSectionMatch) {
+    const listHtml = ingSectionMatch[1] || ingSectionMatch[2];
+    if (listHtml) {
+      const items = [...listHtml.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi)]
+        .map((m) => m[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim())
+        .filter((t) => t.length > 2 && t.length < 150);
+      ingredients.push(...items);
+    }
+  }
+
+  const stepsSectionMatch = html.match(
+    /(?:<h\d[^>]*>[^<]*(?:Preparaci[oó]n|Elaboraci[oó]n|C[oó]mo hacer|Pasos|Instrucciones|Passos)[^<]*<\/h\d>|class=["'][^"']*(?:recipe-instructions|instructions|elaboracion|preparacion)[^"']*["'])[\s\S]*?(?:<ol[^>]*>([\s\S]*?)<\/ol>|<ul[^>]*>([\s\S]*?)<\/ul>)/i
+  );
+  if (stepsSectionMatch) {
+    const listHtml = stepsSectionMatch[1] || stepsSectionMatch[2];
+    if (listHtml) {
+      const items = [...listHtml.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi)]
+        .map((m) => m[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim())
+        .filter((t) => t.length > 10 && t.length < 500);
+      steps.push(...items);
+    }
+  }
+
+  return { ingredients, steps };
 }
 
 function parseIsoDuration(durationStr?: string): number | null {
@@ -594,13 +771,14 @@ export async function extractRecipeFromUrlWithAI(params: {
     throw new Error("L'adreça URL no és vàlida. Ha de començar per http:// o https://");
   }
 
-  // 1. Fetch webpage
+  // 1. Fetch webpage with full browser simulation
   let html = "";
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 12000);
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
     const res = await fetch(trimmedUrl, {
       signal: controller.signal,
+      redirect: "follow",
       headers: {
         "User-Agent":
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
@@ -620,14 +798,19 @@ export async function extractRecipeFromUrlWithAI(params: {
     );
   }
 
-  // 2. Extract structured JSON-LD recipes if available
-  const jsonLdRecipes = extractJsonLdRecipes(html);
-  const jsonLdData = jsonLdRecipes.length > 0 ? JSON.stringify(jsonLdRecipes[0], null, 2) : "";
+  // 2. Extract page metadata (title, slug, og tags, target dish identification)
+  const meta = extractPageMetadata(html, trimmedUrl);
 
-  // 3. Extract cleaned text content
-  const pageText = extractCleanPageText(html);
+  // 3. Extract JSON-LD and select the recipe matching this specific dish
+  const allJsonLd = extractJsonLdRecipes(html);
+  const bestJsonLd = selectBestJsonLdRecipe(allJsonLd, meta, trimmedUrl);
+  const jsonLdData = bestJsonLd ? JSON.stringify(bestJsonLd, null, 2) : "";
 
-  // 4. Try AI generation with Gemini
+  // 4. Extract clean article text and HTML ingredients/steps
+  const articleText = extractSmartArticleContent(html);
+  const extractedHtml = extractHtmlIngredientsAndSteps(html);
+
+  // 5. Try AI extraction with Gemini
   const apiKey = getApiKey(params.customApiKey);
   if (apiKey) {
     try {
@@ -638,35 +821,44 @@ export async function extractRecipeFromUrlWithAI(params: {
 Ets un xef professional i expert culinari multilingüe de màxima precisió.
 L'usuari t'ha proporcionat l'enllaç web d'una recepta: "${trimmedUrl}"
 
-Hem extret les dades i el contingut de la pàgina web:
+--- IDENTIFICACIÓ DEL PLAT PRINCIPAL ---
+TÍTOL DETECTAT A LA PÀGINA: "${meta.bestTitle || meta.slug}"
+NOM DEL PLAT SEGONS LA URL: "${meta.slug}"
+${meta.ogDesc ? `DESCRIPCIÓ DE LA PÀGINA: "${meta.ogDesc}"` : ""}
+-----------------------------------------
+
 ${jsonLdData ? `--- METADADES DE RECEPTA DETECTADES (JSON-LD) ---\n${jsonLdData.slice(0, 5000)}\n------------------------------------------------` : ""}
---- TEXT DE LA PÀGINA WEB ---
-${pageText.slice(0, 10000)}
------------------------------
+${extractedHtml.ingredients.length > 0 ? `--- INGREDIENTS DETECTATS AL WEB ---\n${extractedHtml.ingredients.map((ing) => `- ${ing}`).join("\n")}\n--------------------------------------` : ""}
+--- CONTINGUT PRINCIPAL DE LA PÀGINA WEB ---
+${articleText.slice(0, 10000)}
+-------------------------------------------
 
 INSTRUCCIONS DE MÀXIMA IMPORTÀNCIA:
-1. Analitza la informació de la recepta i extreu-ne tots els detalls.
-2. Tradueix o redacta tot el contingut en CATALÀ natural i correcte (títol, descripció, ingredients, passos).
-3. Adapta les racions a: ${params.servings || 2} persones (ajustant proporcionalment les quantitats dels ingredients).
-4. El títol ha de ser clar, gastronòmic i professional (ex: "Arròs negre amb sípia i allioli", "Pollastre al curri amb llet de coco", etc.).
-5. No incloguis mai fotografies ni enllaços d'imatge a la resposta.
-6. Avalua la complexitat: si la recepta requereix tècniques avançades o més de 35 minuts posa "complex", si és fàcil i ràpida del dia a dia posa "simple".${params.complexity ? ` (L'usuari ha demanat preferentment complexitat "${params.complexity}")` : ""}
-7. Detecta el tipus d'aliment per a l'atribut "foodIcon": "pasta", "rice", "fish", "meat", "legumes", "salad", "soup", "eggs", "vegetables", "dessert", "breakfast", o "other".
-8. Classifica cada ingredient en una categoria: "produce", "dairy", "meat", "bakery", "pantry", "frozen", "beverages", o "other".
+1. EXTREU EXCLUSIVAMENT LA RECEPTA PRINCIPAL DEL PLAT IDENTIFICAT: "${meta.bestTitle || meta.slug}".
+2. REGLES ANTICONFUSIÓ:
+   - Si la URL o el títol conté "macarrons" o "macarrones", aquest plat és PASTA (macarrons salats).
+   - MAI el confonguis amb "macarons" francesos de merenga/ametlla ni amb dolços o pastissos.
+   - Si el plat és salat (pasta, carn, peix, arròs, llegums), ELS INGREDIENTS MAI PODEN SER DE PASTÍS O REPOSTERIA (sense sucre, farina de rebosteria, llevat químic, vainilla, etc.).
+   - Ignora completament anuncis, suggeriments de postres, carrusels de navegació o receptes relacionades de la barra lateral.
+3. Tots els textos han d'estar en CATALÀ natural i gastronòmic (títol, descripció, ingredients, passos).
+4. Adapta les racions a: ${params.servings || 2} persones (ajustant proporcionalment les quantitats dels ingredients).
+5. Detecta el tipus d'aliment per a l'atribut "foodIcon": "pasta", "rice", "fish", "meat", "legumes", "salad", "soup", "eggs", "vegetables", "dessert", "breakfast", o "other". (Per a macarrons, posa sempre "pasta").
+6. Avalua la complexitat: si la recepta requereix més de 35 minuts o tècniques elaborades posa "complex", si és del dia a dia posa "simple".${params.complexity ? ` (L'usuari ha demanat preferentment complexitat "${params.complexity}")` : ""}
+7. Classifica cada ingredient en una categoria: "produce", "dairy", "meat", "bakery", "pantry", "frozen", "beverages", o "other".
 
 Respon EXCLUSIVAMENT amb un JSON vàlid amb aquesta estructura exacta:
 {
-  "title": "Nom de la recepta en català",
+  "title": "Nom gastronòmic en català",
   "description": "Breu resum atractiu del plat",
   "prepTimeMinutes": 15,
-  "cookTimeMinutes": 25,
+  "cookTimeMinutes": 20,
   "servings": ${params.servings || 2},
-  "calories": 450,
+  "calories": 480,
   "protein": 22,
-  "carbs": 45,
+  "carbs": 55,
   "fat": 16,
-  "complexity": "${params.complexity || "simple"}",
-  "foodIcon": "pasta",
+  "complexity": "${params.complexity || (meta.isPasta ? "simple" : "simple")}",
+  "foodIcon": "${meta.isPasta ? "pasta" : "other"}",
   "tags": ["Pasta", "Casolà"],
   "dietaryTags": ["mediterranean"],
   "ingredients": [
@@ -692,8 +884,8 @@ Respon EXCLUSIVAMENT amb un JSON vàlid amb aquesta estructura exacta:
 
       return {
         id: `rec-url-${Date.now()}`,
-        title: parsed.title || "Recepta importada",
-        description: parsed.description || `Recepta importada des de ${new URL(trimmedUrl).hostname}`,
+        title: parsed.title || meta.bestTitle || "Recepta importada",
+        description: parsed.description || meta.ogDesc || `Recepta importada des de ${new URL(trimmedUrl).hostname}`,
         prepTimeMinutes: Number(parsed.prepTimeMinutes) || 15,
         cookTimeMinutes: Number(parsed.cookTimeMinutes) || 20,
         servings: Number(parsed.servings) || params.servings || 2,
@@ -704,8 +896,8 @@ Respon EXCLUSIVAMENT amb un JSON vàlid amb aquesta estructura exacta:
           carbs: Number(parsed.carbs) || 45,
           fat: Number(parsed.fat) || 15,
         },
-        complexity: params.complexity || parsed.complexity || "simple",
-        foodIcon: parsed.foodIcon || "other",
+        complexity: params.complexity || parsed.complexity || (meta.isPasta ? "simple" : "simple"),
+        foodIcon: parsed.foodIcon || (meta.isPasta ? "pasta" : "other"),
         tags: Array.isArray(parsed.tags) ? parsed.tags : ["Importada"],
         dietaryTags: Array.isArray(parsed.dietaryTags) ? parsed.dietaryTags : ["mediterranean"],
         source: "custom",
@@ -726,22 +918,21 @@ Respon EXCLUSIVAMENT amb un JSON vàlid amb aquesta estructura exacta:
     }
   }
 
-  // 5. Fallback: If no Gemini key or Gemini had an issue, extract directly from JSON-LD schema
-  if (jsonLdRecipes.length > 0) {
-    const raw = jsonLdRecipes[0];
-    const prepMinutes = parseIsoDuration(raw.prepTime) || 15;
-    const cookMinutes = parseIsoDuration(raw.cookTime) || 20;
+  // 6. Fallback: Parse structured data or generate tailored recipe from extracted dish name
+  if (bestJsonLd && Array.isArray(bestJsonLd.recipeIngredient) && bestJsonLd.recipeIngredient.length > 0) {
+    const prepMinutes = parseIsoDuration(bestJsonLd.prepTime) || 15;
+    const cookMinutes = parseIsoDuration(bestJsonLd.cookTime) || 20;
 
     let steps: string[] = [];
-    if (Array.isArray(raw.recipeInstructions)) {
-      steps = raw.recipeInstructions
+    if (Array.isArray(bestJsonLd.recipeInstructions)) {
+      steps = bestJsonLd.recipeInstructions
         .map((step: any) => (typeof step === "string" ? step : step.text || step.name || ""))
         .filter(Boolean);
-    } else if (typeof raw.recipeInstructions === "string") {
-      steps = raw.recipeInstructions.split("\n").map((s: string) => s.trim()).filter(Boolean);
+    } else if (typeof bestJsonLd.recipeInstructions === "string") {
+      steps = bestJsonLd.recipeInstructions.split("\n").map((s: string) => s.trim()).filter(Boolean);
     }
 
-    const rawIngredients: string[] = Array.isArray(raw.recipeIngredient) ? raw.recipeIngredient : [];
+    const rawIngredients: string[] = bestJsonLd.recipeIngredient;
     const parsedIngredients = rawIngredients.map((item, idx) => {
       const match = item.match(/^([\d.,\/\s]+)?\s*([a-zA-Zà-úÀ-Ú]+)?\s+(?:de\s+)?(.+)$/);
       return {
@@ -764,28 +955,36 @@ Respon EXCLUSIVAMENT amb un JSON vàlid amb aquesta estructura exacta:
 
     return {
       id: `rec-url-${Date.now()}`,
-      title: raw.name || "Recepta importada",
-      description: raw.description || `Recepta importada des de ${host}`,
+      title: bestJsonLd.name || meta.bestTitle || "Recepta importada",
+      description: bestJsonLd.description || meta.ogDesc || `Recepta importada des de ${host}`,
       prepTimeMinutes: prepMinutes,
       cookTimeMinutes: cookMinutes,
-      servings: params.servings || parseInt(raw.recipeYield) || 2,
-      calories: parseInt(raw.nutrition?.calories) || 450,
+      servings: params.servings || parseInt(bestJsonLd.recipeYield) || 2,
+      calories: parseInt(bestJsonLd.nutrition?.calories) || 450,
       nutrition: {
-        calories: parseInt(raw.nutrition?.calories) || 450,
+        calories: parseInt(bestJsonLd.nutrition?.calories) || 450,
         protein: 20,
         carbs: 45,
         fat: 15,
       },
       complexity: params.complexity || (isComplex ? "complex" : "simple"),
+      foodIcon: meta.isPasta ? "pasta" : "other",
       tags: ["Importada"],
       dietaryTags: ["mediterranean"],
       source: "custom",
-      ingredients:
-        parsedIngredients.length > 0
-          ? parsedIngredients
-          : [{ id: "1", name: "Ingredients segons la recepta", amount: 1, unit: "unitat", category: "other" }],
-      instructions: steps.length > 0 ? steps : ["Seguir les instruccions de la font."],
+      ingredients: parsedIngredients,
+      instructions: steps.length > 0 ? steps : ["Seguir les instruccions de la recepta."],
     };
+  }
+
+  // 7. Fallback when no JSON-LD or corrupted: generate targeted recipe based on detected dish name
+  if (meta.bestTitle || meta.slug) {
+    return generateSmartRecipeFromPrompt({
+      dishName: meta.bestTitle || meta.slug,
+      notes: meta.ogDesc || meta.pageTitle,
+      servings: params.servings || 2,
+      complexity: params.complexity || (meta.isPasta ? "simple" : "simple"),
+    });
   }
 
   throw new Error(

@@ -44,33 +44,7 @@ export async function GET() {
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 
-    // Auto-seed if table is empty
-    if (!data || data.length === 0) {
-      const seedPayload = INITIAL_RECIPES.map((r) => ({
-        author_name: "MenúPlanik",
-        title: r.title,
-        description: r.description,
-        prep_time_minutes: r.prepTimeMinutes,
-        cook_time_minutes: r.cookTimeMinutes,
-        servings: r.servings,
-        calories: r.calories,
-        nutrition: r.nutrition,
-        tags: r.tags,
-        dietary_tags: r.dietaryTags,
-        ingredients: r.ingredients,
-        instructions: r.instructions,
-        image_url: r.imageUrl,
-        source: "curated",
-        difficulty: r.difficulty,
-        moderation_status: "approved_public",
-        is_public: true,
-      }));
-      await adminClient.from("recipes").insert(seedPayload);
-      const { data: seeded } = await adminClient.from("recipes").select("*").order("created_at", { ascending: false });
-      return NextResponse.json({ success: true, recipes: (seeded || []).map(mapDbToRecipe) });
-    }
-
-    return NextResponse.json({ success: true, recipes: data.map(mapDbToRecipe) });
+    return NextResponse.json({ success: true, recipes: (data || []).map(mapDbToRecipe) });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }

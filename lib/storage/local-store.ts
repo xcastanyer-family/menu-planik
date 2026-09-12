@@ -1,8 +1,7 @@
 import { Recipe, WeeklyMealPlan, PantryItem, GroceryItem, UserPreferences, Family, FamilyMember, UserSession } from "@/types";
 import { setSessionCookie, clearSessionCookie } from "@/lib/auth/session-cookie";
 import {
-  INITIAL_RECIPES,
-  INITIAL_MEAL_PLAN,
+  createEmptyMealPlan,
   INITIAL_PANTRY,
   DEFAULT_PREFERENCES,
   DEFAULT_FAMILY,
@@ -568,12 +567,11 @@ export const LocalStore = {
 
   // --- Recipes & Public Moderation ---
   getAllRecipesRaw(): Recipe[] {
-    if (typeof window === "undefined") return INITIAL_RECIPES;
+    if (typeof window === "undefined") return [];
     try {
       const data = localStorage.getItem(STORAGE_KEYS.RECIPES);
       if (!data) {
-        localStorage.setItem(STORAGE_KEYS.RECIPES, JSON.stringify(INITIAL_RECIPES));
-        return INITIAL_RECIPES;
+        return [];
       }
       let changed = false;
       const parsed: Recipe[] = JSON.parse(data).map((r: Recipe) => {
@@ -589,7 +587,7 @@ export const LocalStore = {
       }
       return deduplicated;
     } catch {
-      return INITIAL_RECIPES;
+      return [];
     }
   },
 
@@ -762,16 +760,17 @@ export const LocalStore = {
 
   // --- Meal Plan ---
   getMealPlan(): WeeklyMealPlan {
-    if (typeof window === "undefined") return INITIAL_MEAL_PLAN;
+    if (typeof window === "undefined") return createEmptyMealPlan();
     try {
       const data = localStorage.getItem(STORAGE_KEYS.MEAL_PLAN);
       if (!data) {
-        localStorage.setItem(STORAGE_KEYS.MEAL_PLAN, JSON.stringify(INITIAL_MEAL_PLAN));
-        return INITIAL_MEAL_PLAN;
+        const emptyPlan = createEmptyMealPlan();
+        localStorage.setItem(STORAGE_KEYS.MEAL_PLAN, JSON.stringify(emptyPlan));
+        return emptyPlan;
       }
       return JSON.parse(data);
     } catch {
-      return INITIAL_MEAL_PLAN;
+      return createEmptyMealPlan();
     }
   },
 
@@ -808,9 +807,7 @@ export const LocalStore = {
     try {
       const data = localStorage.getItem(STORAGE_KEYS.GROCERIES);
       if (!data) {
-        const initialGroceries = generateGroceriesFromPlan(this.getMealPlan(), this.getPantry());
-        localStorage.setItem(STORAGE_KEYS.GROCERIES, JSON.stringify(initialGroceries));
-        return initialGroceries;
+        return [];
       }
       return JSON.parse(data);
     } catch {
@@ -847,19 +844,21 @@ export const LocalStore = {
 
   resetAllToDefault() {
     if (typeof window === "undefined") return;
-    localStorage.setItem(STORAGE_KEYS.RECIPES, JSON.stringify(INITIAL_RECIPES));
+    const emptyPlan = createEmptyMealPlan();
+    localStorage.setItem(STORAGE_KEYS.RECIPES, JSON.stringify([]));
     localStorage.setItem(STORAGE_KEYS.ALL_FAMILIES, JSON.stringify(INITIAL_FAMILIES));
-    localStorage.setItem(STORAGE_KEYS.MEAL_PLAN, JSON.stringify(INITIAL_MEAL_PLAN));
+    localStorage.setItem(STORAGE_KEYS.MEAL_PLAN, JSON.stringify(emptyPlan));
     localStorage.setItem(STORAGE_KEYS.PANTRY, JSON.stringify(INITIAL_PANTRY));
     localStorage.setItem(STORAGE_KEYS.PREFERENCES, JSON.stringify(DEFAULT_PREFERENCES));
     localStorage.setItem(STORAGE_KEYS.FAMILY, JSON.stringify(DEFAULT_FAMILY));
     localStorage.setItem(STORAGE_KEYS.SESSION, JSON.stringify(DEFAULT_SESSION));
-    const initialGroceries = generateGroceriesFromPlan(INITIAL_MEAL_PLAN, INITIAL_PANTRY);
-    localStorage.setItem(STORAGE_KEYS.GROCERIES, JSON.stringify(initialGroceries));
+    localStorage.setItem(STORAGE_KEYS.GROCERIES, JSON.stringify([]));
     window.dispatchEvent(new Event("menuplanik_reset_all"));
     window.dispatchEvent(new Event("menuplanik_session_changed"));
     window.dispatchEvent(new Event("menuplanik_family_changed"));
     window.dispatchEvent(new Event("menuplanik_recipes_changed"));
+    window.dispatchEvent(new Event("menuplanik_mealplan_changed"));
+    window.dispatchEvent(new Event("menuplanik_groceries_changed"));
   },
 };
 

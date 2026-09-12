@@ -1,4 +1,4 @@
-import { Recipe, WeeklyMealPlan, PantryItem, UserPreferences, GroceryItem, Family, UserSession } from "@/types";
+import { Recipe, WeeklyMealPlan, PantryItem, UserPreferences, GroceryItem, Family, UserSession, DayOfWeek, MealType, MealSlot } from "@/types";
 
 export const INITIAL_RECIPES: Recipe[] = [
   {
@@ -428,6 +428,39 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   maxCookingTimeMinutes: 30,
   budgetLevel: "moderate",
 };
+
+export function createEmptyMealPlan(familyId = "fam-main"): WeeklyMealPlan {
+  const days: DayOfWeek[] = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+  const mealTypes: MealType[] = ["breakfast", "lunch", "dinner"];
+  const slots: MealSlot[] = [];
+
+  for (const day of days) {
+    for (const mealType of mealTypes) {
+      slots.push({
+        id: `slot-${day}-${mealType}`,
+        day,
+        mealType,
+        isCompleted: false,
+      });
+    }
+  }
+
+  const today = new Date().toISOString().split("T")[0];
+  return {
+    id: "plan-current-week",
+    familyId,
+    title: "Menú Setmanal",
+    weekStartDate: today,
+    householdSize: 2,
+    targetDailyCalories: 2000,
+    dietaryPreference: "mediterranean",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    slots,
+  };
+}
+
+export const EMPTY_MEAL_PLAN: WeeklyMealPlan = createEmptyMealPlan();
 
 export const INITIAL_MEAL_PLAN: WeeklyMealPlan = {
   id: "plan-current-week",

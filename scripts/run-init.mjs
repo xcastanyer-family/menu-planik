@@ -389,40 +389,38 @@ const WEEK_PLAN_SLOTS = [
   { day: "sunday", meal_type: "dinner", recipeIndex: 8 }       // Empedrat
 ];
 
-async function seed() {
-  console.log("== INICIALITZACIÓ BASE DE DADES MENUPLANIK ==");
+async function run() {
+  console.log("== INICIALITZACIÓ / NETEJA DE BASE DE DADES MENUPLANIK ==");
 
-  // 1. RECEPTES
-  console.log("1. Netejant i inserint receptes...");
-  await client.from("recipes").delete().neq("title", "");
+  // 1. Eliminar àpats planificats (meal_slots)
+  console.log("1. Eliminant tots els àpats planificats (meal_slots)...");
+  const { error: sErr } = await client.from("meal_slots").delete().neq("day", "___none___");
+  if (sErr) console.warn("Avís eliminant slots:", sErr.message);
+  else console.log("✓ meal_slots eliminats.");
 
-  const recipePayload = RECIPES.map((r) => ({
-    author_name: "MenúPlanik",
-    title: r.title,
-    description: r.description,
-    prep_time_minutes: r.prep_time_minutes,
-    cook_time_minutes: r.cook_time_minutes,
-    servings: r.servings,
-    calories: r.calories,
-    nutrition: r.nutrition,
-    tags: r.tags,
-    dietary_tags: r.dietary_tags,
-    ingredients: r.ingredients,
-    instructions: r.instructions,
-    source: r.source,
-    difficulty: r.difficulty,
-    moderation_status: "approved_public",
-    is_public: true
-  }));
+  // 2. Eliminar llista de la compra (grocery_items)
+  console.log("2. Eliminant tota la llista de la compra (grocery_items)...");
+  const { error: gErr } = await client.from("grocery_items").delete().neq("name", "___none___");
+  if (gErr) console.warn("Avís eliminant grocery_items:", gErr.message);
+  else console.log("✓ grocery_items eliminats.");
 
-  const { data: insertedRecipes, error: rErr } = await client.from("recipes").insert(recipePayload).select("*");
+  // 3. Eliminar plans de menú (meal_plans)
+  console.log("3. Eliminant tots els plans de menú (meal_plans)...");
+  const { error: pErr } = await client.from("meal_plans").delete().neq("title", "___none___");
+  if (pErr) console.warn("Avís eliminant meal_plans:", pErr.message);
+  else console.log("✓ meal_plans eliminats.");
+
+  // 4. Eliminar totes les receptes (recipes)
+  console.log("4. Eliminant totes les receptes (recipes)...");
+  const { error: rErr } = await client.from("recipes").delete().neq("title", "___none___");
   if (rErr) {
-    console.error("Error inserint receptes:", rErr);
+    console.error("Error eliminant receptes:", rErr.message);
     process.exit(1);
   }
-  console.log(`✓ ${insertedRecipes.length} receptes inserides correctament.`);
+  console.log("✓ recipes eliminades.");
 
-  // 2. FAMÍLIES
+  // 5. Assegurar famílies
+  console.log("5. Verificant famílies...");
   let { data: families } = await client.from("families").select("*");
   if (!families || families.length === 0) {
     const { data: newFams } = await client.from("families").insert([
@@ -443,98 +441,12 @@ async function seed() {
     ]).select();
     families = newFams || [];
   }
-  console.log(`✓ Famílies trobades/configurades: ${families.length}`);
-
-  // 3. MENÚS, REBOST I COMPRA PER A CADA FAMÍLIA
-  for (const fam of families) {
-    console.log(`\nConfigurant dades per a: ${fam.name} (${fam.code})...`);
-
-    // Neteja previa
-    await client.from("pantry_items").delete().eq("family_id", fam.id);
-    await client.from("grocery_items").delete().eq("family_id", fam.id);
-    await client.from("meal_plans").delete().eq("family_id", fam.id);
-
-    // Pla de menú
-    const today = new Date().toISOString().split("T")[0];
-    const { data: plan, error: pErr } = await client.from("meal_plans").insert({
-      family_id: fam.id,
-      week_start_date: today,
-      title: `Menú Setmanal de la ${fam.name}`,
-      household_size: 2,
-      target_daily_calories: 2000,
-      dietary_preference: "mediterranean"
-    }).select().single();
-
-    if (pErr) {
-      console.error(`Error creant pla de menú per a ${fam.name}:`, pErr);
-      continue;
-    }
-    console.log(`  ✓ Pla de menú creat: ID ${plan.id}`);
-
-    // Àpats (Slots)
-    const slotsPayload = WEEK_PLAN_SLOTS.map((s) => {
-      const rec = insertedRecipes[s.recipeIndex] || insertedRecipes[0];
-      return {
-        plan_id: plan.id,
-        day: s.day,
-        meal_type: s.meal_type,
-        recipe_id: rec.id,
-        is_completed: false
-      };
-    });
-
-    const { data: slots, error: sErr } = await client.from("meal_slots").insert(slotsPayload).select();
-    if (sErr) console.error("Error inserint slots:", sErr);
-    else console.log(`  ✓ ${slots.length} àpats (slots) planificats.`);
-
-    // Rebost (Pantry)
-    const pantryPayload = PANTRY.map((p) => ({
-      family_id: fam.id,
-      name: p.name,
-      amount: p.amount,
-      unit: p.unit,
-      category: p.category,
-      is_low: false
-    }));
-    const { data: pantries, error: paErr } = await client.from("pantry_items").insert(pantryPayload).select();
-    if (paErr) console.error("Error inserint rebost:", paErr);
-    else console.log(`  ✓ ${pantries.length} productes afegits al rebost.`);
-
-    // Llista de la compra (Groceries)
-    // Generar automàticament des dels ingredients dels àpats
-    const grocMap = new Map();
-    for (const slot of WEEK_PLAN_SLOTS) {
-      const rec = RECIPES[slot.recipeIndex] || RECIPES[0];
-      for (const ing of rec.ingredients) {
-        const key = `${ing.name.toLowerCase()}-${ing.unit.toLowerCase()}`;
-        const amt = (ing.amount / (rec.servings || 2)) * 2;
-        if (!grocMap.has(key)) {
-          grocMap.set(key, {
-            family_id: fam.id,
-            meal_plan_id: plan.id,
-            name: ing.name,
-            amount: Math.round(amt * 10) / 10,
-            unit: ing.unit,
-            category: ing.category || "other",
-            checked: false,
-            recipe_source: rec.title
-          });
-        } else {
-          const item = grocMap.get(key);
-          item.amount = Math.round((item.amount + amt) * 10) / 10;
-        }
-      }
-    }
-
-    const groceryPayload = Array.from(grocMap.values());
-    const { data: grocs, error: gErr } = await client.from("grocery_items").insert(groceryPayload).select();
-    if (gErr) console.error("Error inserint llista compra:", gErr);
-    else console.log(`  ✓ ${grocs.length} articles generats per a la llista de la compra.`);
-  }
+  console.log(`✓ Famílies configurades: ${families.length}`);
 
   console.log("\n=============================================");
-  console.log("BASE DE DADES INICIALITZADA AMB ÈXIT AL NÚVOL!");
+  console.log("BASE DE DADES INICIALITZADA: TOTES LES RECEPTES,");
+  console.log("MENÚS PLANIFICATS I LLISTA DE LA COMPRA HAN ESTAT ELIMINATS!");
   console.log("=============================================");
 }
 
-seed();
+run();

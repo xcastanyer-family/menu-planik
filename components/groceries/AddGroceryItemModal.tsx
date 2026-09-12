@@ -109,7 +109,7 @@ export const AddGroceryItemModal: React.FC<AddGroceryItemModalProps> = ({
 
   return (
     <>
-      <Modal isOpen={isOpen} onClose={onClose} title="Afegeix Producte a la Llista de Compra" size="md">
+      <Modal isOpen={isOpen} onClose={onClose} title="Afegeix Producte a la Llista de Compra" maxWidth="md">
         <form onSubmit={handleSubmit} className="space-y-4 pt-1">
           {/* Barcode scan / Quick add product from database */}
           <div className="bg-primary-50/60 dark:bg-primary-950/20 border border-primary-100 dark:border-primary-900/40 p-3 rounded-2xl flex items-center justify-between gap-2">

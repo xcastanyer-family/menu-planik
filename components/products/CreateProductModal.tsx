@@ -133,7 +133,7 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       title={productToEdit ? "Edita Producte" : "Donar d'Alta Producte a la BD"}
-      size="lg"
+      maxWidth="lg"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         {!productToEdit && onOpenScan && (

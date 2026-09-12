@@ -8,6 +8,7 @@ import {
   Calendar,
   BookOpen,
   ShoppingCart,
+  ClipboardList,
   Package,
   Settings,
   Users,
@@ -33,6 +34,7 @@ export const Navbar: React.FC<{ onOpenGenerateModal?: () => void }> = ({ onOpenG
   const [session, setSession] = useState<UserSession | null>(null);
   const [isRoleMenuOpen, setIsRoleMenuOpen] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
+  const [publishedPendingCount, setPublishedPendingCount] = useState(0);
 
   const loadData = () => {
     const currentSession = LocalStore.getCurrentSession();
@@ -40,6 +42,14 @@ export const Navbar: React.FC<{ onOpenGenerateModal?: () => void }> = ({ onOpenG
     const pFam = LocalStore.getPendingFamilies().length;
     const pRec = LocalStore.getPendingRecipes().length;
     setPendingCount(pFam + pRec);
+
+    const published = LocalStore.getPublishedShoppingList();
+    if (published) {
+      const pending = published.items.filter((i) => !i.checked).length;
+      setPublishedPendingCount(pending);
+    } else {
+      setPublishedPendingCount(0);
+    }
   };
 
   useEffect(() => {
@@ -48,10 +58,12 @@ export const Navbar: React.FC<{ onOpenGenerateModal?: () => void }> = ({ onOpenG
     window.addEventListener("menuplanik_session_changed", loadData);
     window.addEventListener("menuplanik_family_changed", loadData);
     window.addEventListener("menuplanik_recipes_changed", loadData);
+    window.addEventListener("menuplanik_published_groceries_changed", loadData);
     return () => {
       window.removeEventListener("menuplanik_session_changed", loadData);
       window.removeEventListener("menuplanik_family_changed", loadData);
       window.removeEventListener("menuplanik_recipes_changed", loadData);
+      window.removeEventListener("menuplanik_published_groceries_changed", loadData);
     };
   }, []);
 
@@ -86,7 +98,13 @@ export const Navbar: React.FC<{ onOpenGenerateModal?: () => void }> = ({ onOpenG
   const navLinks = [
     { href: "/planner", label: "Planificador", icon: Calendar },
     { href: "/recipes", label: "Receptari", icon: BookOpen },
-    { href: "/groceries", label: "Llista de Compra", icon: ShoppingCart },
+    { href: "/groceries", label: "Llista de Compra", icon: ClipboardList },
+    {
+      href: "/compra",
+      label: "Compra",
+      icon: ShoppingCart,
+      badge: publishedPendingCount > 0 ? publishedPendingCount : undefined,
+    },
     { href: "/pantry", label: "Rebost", icon: Package },
     { href: "/family", label: "Família", icon: Users },
     ...(isSuperadmin

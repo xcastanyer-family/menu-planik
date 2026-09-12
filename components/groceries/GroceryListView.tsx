@@ -1,28 +1,33 @@
 "use client";
 
 import React from "react";
-import { GroceryItem, GroceryCategory } from "@/types";
+import Link from "next/link";
+import { GroceryItem, GroceryCategory, PublishedShoppingList } from "@/types";
 import { formatAisleCategory, triggerConfetti } from "@/lib/utils";
-import { Check, Trash2, Plus, Share2, RefreshCw, ShoppingBag } from "lucide-react";
+import { Check, Trash2, Plus, Share2, RefreshCw, ShoppingBag, Send, CheckCircle2, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { toast } from "sonner";
 
 interface GroceryListViewProps {
   items: GroceryItem[];
+  publishedList?: PublishedShoppingList | null;
   onToggleItem: (id: string) => void;
   onDeleteItem: (id: string) => void;
   onClearCompleted: () => void;
   onSyncFromMealPlan: () => void;
+  onPublishList: () => void;
   onOpenAddItemModal: () => void;
   onOpenShareModal: () => void;
 }
 
 export const GroceryListView: React.FC<GroceryListViewProps> = ({
   items,
+  publishedList,
   onToggleItem,
   onDeleteItem,
   onClearCompleted,
   onSyncFromMealPlan,
+  onPublishList,
   onOpenAddItemModal,
   onOpenShareModal,
 }) => {
@@ -53,15 +58,71 @@ export const GroceryListView: React.FC<GroceryListViewProps> = ({
     }
   };
 
+  const publishedPendingCount = publishedList ? publishedList.items.filter((i) => !i.checked).length : 0;
+
   return (
     <div className="space-y-6">
+      {/* Published List Status Banner */}
+      {publishedList && (
+        <div className="bg-emerald-50/90 dark:bg-emerald-950/40 border border-emerald-200/90 dark:border-emerald-800/60 rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/15 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+              <CheckCircle2 className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-bold text-emerald-900 dark:text-emerald-200">
+                  Llista activa publicada per anar al supermercat
+                </p>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-200/60 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300">
+                  Activa
+                </span>
+              </div>
+              <p className="text-xs text-emerald-700/90 dark:text-emerald-400/90 mt-0.5">
+                Publicada el {new Date(publishedList.publishedAt).toLocaleDateString("ca-ES", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })} • {publishedPendingCount} productes pendents de comprar
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onPublishList}
+              className="border-emerald-300 dark:border-emerald-700/80 text-emerald-800 dark:text-emerald-200 hover:bg-emerald-100/60 text-xs flex-1 sm:flex-initial"
+              title="Actualitza la llista publicada amb els canvis que hagis fet aquí"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              Actualitza Publicació
+            </Button>
+            <Link href="/compra" className="flex-1 sm:flex-initial">
+              <Button
+                variant="primary"
+                size="sm"
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs shadow-sm font-semibold"
+              >
+                <ShoppingCart className="w-3.5 h-3.5" />
+                Ves a Compra
+              </Button>
+            </Link>
+          </div>
+        </div>
+      )}
+
       {/* Top Header & Summary Card */}
       <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 p-4 sm:p-6 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-zinc-900 dark:text-white flex items-center gap-2">
-            <ShoppingBag className="w-5 h-5 text-primary-600" />
-            Llista de la Compra
-          </h2>
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-xl font-bold text-zinc-900 dark:text-white flex items-center gap-2">
+              <ShoppingBag className="w-5 h-5 text-primary-600" />
+              Revisió de la Llista de Compra
+            </h2>
+            <span className="text-[11px] font-medium text-zinc-500 bg-zinc-100 dark:bg-zinc-800 px-2.5 py-0.5 rounded-full border border-zinc-200/60 dark:border-zinc-700/50">
+              Borrador editable
+            </span>
+          </div>
+          <p className="text-xs text-zinc-500 mt-1">
+            Revisa i personalitza els ingredients abans de publicar la llista definitiva per anar al supermercat.
+          </p>
 
           {/* Shopping Progress Bar */}
           {totalCount > 0 && (
@@ -91,9 +152,20 @@ export const GroceryListView: React.FC<GroceryListViewProps> = ({
             Comparteix
           </Button>
 
-          <Button variant="primary" size="sm" onClick={onOpenAddItemModal}>
+          <Button variant="outline" size="sm" onClick={onOpenAddItemModal}>
             <Plus className="w-4 h-4" />
             Afegeix Article
+          </Button>
+
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={onPublishList}
+            className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-md shadow-emerald-600/20 font-semibold"
+            title="Publica la llista perquè estigui disponible a la pantalla de Compra al supermercat"
+          >
+            <Send className="w-3.5 h-3.5" />
+            Publicar Llista
           </Button>
         </div>
       </div>

@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { GroceryItem } from "@/types";
+import { useRouter } from "next/navigation";
+import { GroceryItem, PublishedShoppingList } from "@/types";
 import { LocalStore } from "@/lib/storage/local-store";
 import { generateGroceriesFromPlan } from "@/lib/storage/mock-data";
 import { GroceryListView } from "@/components/groceries/GroceryListView";
@@ -10,18 +11,25 @@ import { ShareGroceryModal } from "@/components/groceries/ShareGroceryModal";
 import { toast } from "sonner";
 
 export default function GroceriesPage() {
+  const router = useRouter();
   const [items, setItems] = useState<GroceryItem[]>([]);
+  const [publishedList, setPublishedList] = useState<PublishedShoppingList | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
 
   useEffect(() => {
     const load = () => {
       setItems(LocalStore.getGroceries());
+      setPublishedList(LocalStore.getPublishedShoppingList());
     };
     load();
 
     window.addEventListener("menuplanik_groceries_changed", load);
-    return () => window.removeEventListener("menuplanik_groceries_changed", load);
+    window.addEventListener("menuplanik_published_groceries_changed", load);
+    return () => {
+      window.removeEventListener("menuplanik_groceries_changed", load);
+      window.removeEventListener("menuplanik_published_groceries_changed", load);
+    };
   }, []);
 
   const handleToggleItem = (id: string) => {
@@ -62,14 +70,31 @@ export default function GroceriesPage() {
     toast.success(`Afegit: ${newItem.name}`);
   };
 
+  const handlePublishList = () => {
+    if (items.length === 0) {
+      toast.error("La llista està buida. Afegeix productes o importa'ls del menú abans de publicar.");
+      return;
+    }
+    const published = LocalStore.publishShoppingList(items);
+    setPublishedList(published);
+    toast.success("Llista de la compra publicada amb èxit! Ja la tens disponible a 'Compra'.", {
+      action: {
+        label: "Ves a Compra",
+        onClick: () => router.push("/compra"),
+      },
+    });
+  };
+
   return (
     <div className="space-y-6">
       <GroceryListView
         items={items}
+        publishedList={publishedList}
         onToggleItem={handleToggleItem}
         onDeleteItem={handleDeleteItem}
         onClearCompleted={handleClearCompleted}
         onSyncFromMealPlan={handleSyncFromMealPlan}
+        onPublishList={handlePublishList}
         onOpenAddItemModal={() => setIsAddOpen(true)}
         onOpenShareModal={() => setIsShareOpen(true)}
       />

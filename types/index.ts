@@ -111,6 +111,16 @@ export interface GroceryItem {
   addedBy?: string;
 }
 
+export interface PublishedShoppingList {
+  id: string;
+  familyId?: string;
+  publishedAt: string;
+  updatedAt?: string;
+  items: GroceryItem[];
+  notes?: string;
+  isCompleted?: boolean;
+}
+
 export interface PantryItem {
   id: string;
   name: string;

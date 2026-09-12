@@ -1,4 +1,4 @@
-import { Recipe, WeeklyMealPlan, PantryItem, GroceryItem, UserPreferences, Family, FamilyMember, UserSession } from "@/types";
+import { Recipe, WeeklyMealPlan, PantryItem, GroceryItem, PublishedShoppingList, UserPreferences, Family, FamilyMember, UserSession } from "@/types";
 import { setSessionCookie, clearSessionCookie } from "@/lib/auth/session-cookie";
 import {
   createEmptyMealPlan,
@@ -16,6 +16,7 @@ const STORAGE_KEYS = {
   MEAL_PLAN: "menuplanik_meal_plan_ca_v2",
   PANTRY: "menuplanik_pantry_ca_v2",
   GROCERIES: "menuplanik_groceries_ca_v2",
+  PUBLISHED_GROCERIES: "menuplanik_published_groceries_ca_v2",
   PREFERENCES: "menuplanik_preferences_ca_v2",
   FAMILY: "menuplanik_family_ca_v2",
   ALL_FAMILIES: "menuplanik_all_families_ca_v2",
@@ -821,6 +822,98 @@ export const LocalStore = {
     window.dispatchEvent(new Event("menuplanik_groceries_changed"));
   },
 
+  // --- Published Shopping List ---
+  getPublishedShoppingList(): PublishedShoppingList | null {
+    if (typeof window === "undefined") return null;
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.PUBLISHED_GROCERIES);
+      if (!data) return null;
+      return JSON.parse(data);
+    } catch {
+      return null;
+    }
+  },
+
+  savePublishedShoppingList(list: PublishedShoppingList | null) {
+    if (typeof window === "undefined") return;
+    if (!list) {
+      localStorage.removeItem(STORAGE_KEYS.PUBLISHED_GROCERIES);
+    } else {
+      localStorage.setItem(STORAGE_KEYS.PUBLISHED_GROCERIES, JSON.stringify(list));
+    }
+    window.dispatchEvent(new Event("menuplanik_published_groceries_changed"));
+  },
+
+  publishShoppingList(items: GroceryItem[], notes?: string): PublishedShoppingList {
+    const existing = this.getPublishedShoppingList();
+    const session = this.getCurrentSession();
+
+    // If an item was already marked as checked in the active published list, preserve its state; otherwise start unchecked
+    const publishedItems: GroceryItem[] = items.map((item) => {
+      const prev = existing?.items.find((p) => p.id === item.id);
+      return {
+        ...item,
+        checked: prev ? prev.checked : false,
+      };
+    });
+
+    const publishedList: PublishedShoppingList = {
+      id: existing?.id || `pub-shop-${Date.now()}`,
+      familyId: session?.familyId,
+      publishedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      items: publishedItems,
+      notes: notes !== undefined ? notes : existing?.notes,
+      isCompleted: false,
+    };
+
+    this.savePublishedShoppingList(publishedList);
+    return publishedList;
+  },
+
+  togglePublishedItem(itemId: string) {
+    const list = this.getPublishedShoppingList();
+    if (!list) return;
+    const updatedItems = list.items.map((i) =>
+      i.id === itemId ? { ...i, checked: !i.checked } : i
+    );
+    const allChecked = updatedItems.length > 0 && updatedItems.every((i) => i.checked);
+    this.savePublishedShoppingList({
+      ...list,
+      items: updatedItems,
+      isCompleted: allChecked,
+      updatedAt: new Date().toISOString(),
+    });
+  },
+
+  addPublishedItem(item: GroceryItem) {
+    const list = this.getPublishedShoppingList();
+    if (!list) return;
+    this.savePublishedShoppingList({
+      ...list,
+      items: [item, ...list.items],
+      isCompleted: false,
+      updatedAt: new Date().toISOString(),
+    });
+  },
+
+  removePublishedItem(itemId: string) {
+    const list = this.getPublishedShoppingList();
+    if (!list) return;
+    const remaining = list.items.filter((i) => i.id !== itemId);
+    const allChecked = remaining.length > 0 && remaining.every((i) => i.checked);
+    this.savePublishedShoppingList({
+      ...list,
+      items: remaining,
+      isCompleted: allChecked,
+      updatedAt: new Date().toISOString(),
+    });
+  },
+
+  unpublishShoppingList() {
+    this.savePublishedShoppingList(null);
+  },
+
   // --- Preferences ---
   getPreferences(): UserPreferences {
     if (typeof window === "undefined") return DEFAULT_PREFERENCES;
@@ -853,12 +946,14 @@ export const LocalStore = {
     localStorage.setItem(STORAGE_KEYS.FAMILY, JSON.stringify(DEFAULT_FAMILY));
     localStorage.setItem(STORAGE_KEYS.SESSION, JSON.stringify(DEFAULT_SESSION));
     localStorage.setItem(STORAGE_KEYS.GROCERIES, JSON.stringify([]));
+    localStorage.removeItem(STORAGE_KEYS.PUBLISHED_GROCERIES);
     window.dispatchEvent(new Event("menuplanik_reset_all"));
     window.dispatchEvent(new Event("menuplanik_session_changed"));
     window.dispatchEvent(new Event("menuplanik_family_changed"));
     window.dispatchEvent(new Event("menuplanik_recipes_changed"));
     window.dispatchEvent(new Event("menuplanik_mealplan_changed"));
     window.dispatchEvent(new Event("menuplanik_groceries_changed"));
+    window.dispatchEvent(new Event("menuplanik_published_groceries_changed"));
   },
 };
 

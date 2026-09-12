@@ -21,13 +21,33 @@ function mapDbToProduct(row: any) {
   };
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const adminClient = createAdminClient();
   if (!adminClient) {
     return NextResponse.json({ success: true, products: [] });
   }
 
   try {
+    const { searchParams } = new URL(request.url);
+    const barcode = searchParams.get("barcode");
+
+    if (barcode) {
+      const { data, error } = await adminClient
+        .from("products")
+        .select("*")
+        .eq("barcode", barcode.trim())
+        .maybeSingle();
+
+      if (error) {
+        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        success: true,
+        product: data ? mapDbToProduct(data) : null,
+      });
+    }
+
     const { data, error } = await adminClient
       .from("products")
       .select("*")

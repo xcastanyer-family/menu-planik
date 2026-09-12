@@ -18,6 +18,28 @@ export const SupabaseProductService = {
     }
     return { products: [] };
   },
+ 
+  /**
+   * Cerca un producte pel seu codi de barres a la base de dades
+   */
+  async getProductByBarcode(barcode: string): Promise<Product | null> {
+    try {
+      const clean = barcode.trim();
+      if (!clean) return null;
+      const res = await fetch(`/api/products?barcode=${encodeURIComponent(clean)}`, {
+        cache: "no-store",
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.product) {
+          return json.product;
+        }
+      }
+    } catch (err) {
+      console.warn("Error consultant producte per codi de barres:", err);
+    }
+    return null;
+  },
 
   /**
    * Crea un nou producte a la base de dades

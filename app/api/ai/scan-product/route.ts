@@ -1,6 +1,27 @@
 import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { GroceryCategory } from "@/types";
+import { GroceryCategory, Product } from "@/types";
+import { createAdminClient } from "@/lib/supabase/admin";
+
+function mapDbToProduct(row: any): Product {
+  return {
+    id: row.id,
+    familyId: row.family_id,
+    name: row.name,
+    brand: row.brand || undefined,
+    barcode: row.barcode || undefined,
+    category: row.category || "other",
+    defaultUnit: row.default_unit || "u.",
+    packageSize: row.package_size ? Number(row.package_size) : undefined,
+    imageUrl: row.image_url || undefined,
+    nutrition: row.nutrition || { calories: 0, protein: 0, carbs: 0, fat: 0 },
+    allergens: row.allergens || [],
+    notes: row.notes || undefined,
+    source: row.source || "database",
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
 
 function getApiKey(customKey?: string): string | null {
   const key = customKey || process.env.GEMINI_API_KEY;
@@ -89,11 +110,40 @@ export async function POST(request: Request) {
       );
     }
 
-    // 1. Si ja tenim codi de barres numèric, intentem Open Food Facts directament (no requereix Gemini!)
+    // 1. Primer de tot: Comprovem si aquest producte JA existeix a la nostra base de dades!
     if (barcode) {
-      const offResult = await fetchOpenFoodFacts(barcode);
+      const cleanBarcode = barcode.replace(/\D/g, "") || barcode.trim();
+      const adminClient = createAdminClient();
+      if (adminClient) {
+        try {
+          const { data: dbProduct } = await adminClient
+            .from("products")
+            .select("*")
+            .eq("barcode", cleanBarcode)
+            .maybeSingle();
+
+          if (dbProduct) {
+            return NextResponse.json({
+              success: true,
+              existsInDb: true,
+              product: mapDbToProduct(dbProduct),
+              source: "database",
+            });
+          }
+        } catch (dbErr) {
+          console.warn("Error consultant producte existent a la BD:", dbErr);
+        }
+      }
+
+      // Si no és a la BD, intentem Open Food Facts directament (no requereix Gemini!)
+      const offResult = await fetchOpenFoodFacts(cleanBarcode);
       if (offResult) {
-        return NextResponse.json({ success: true, product: offResult, source: "open_food_facts" });
+        return NextResponse.json({
+          success: true,
+          existsInDb: false,
+          product: offResult,
+          source: "open_food_facts",
+        });
       }
     }
 
@@ -104,6 +154,7 @@ export async function POST(request: Request) {
       if (barcode) {
         return NextResponse.json({
           success: true,
+          existsInDb: false,
           product: {
             name: "Producte (" + barcode + ")",
             barcode,
@@ -197,12 +248,35 @@ Respon EXCLUSIVAMENT amb un objecte JSON vàlid amb aquest format:
       }
     }
 
-    // 3. Si Gemini ha detectat un codi de barres, intentem enriquir amb Open Food Facts
+    // 3. Si Gemini ha detectat un codi de barres, comprovem la BD primer i després Open Food Facts
     if (detectedBarcode && detectedBarcode.length >= 8) {
+      const adminClient = createAdminClient();
+      if (adminClient) {
+        try {
+          const { data: dbProduct } = await adminClient
+            .from("products")
+            .select("*")
+            .eq("barcode", detectedBarcode)
+            .maybeSingle();
+
+          if (dbProduct) {
+            return NextResponse.json({
+              success: true,
+              existsInDb: true,
+              product: mapDbToProduct(dbProduct),
+              source: "database",
+            });
+          }
+        } catch (dbErr) {
+          console.warn("Error consultant producte detectat a la BD:", dbErr);
+        }
+      }
+
       const offData = await fetchOpenFoodFacts(detectedBarcode);
       if (offData) {
         return NextResponse.json({
           success: true,
+          existsInDb: false,
           product: {
             ...extractedProduct,
             ...offData,

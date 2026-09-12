@@ -17,6 +17,8 @@ import {
   Check,
   RotateCcw,
   ChefHat,
+  Globe,
+  Link as LinkIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -31,8 +33,11 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
   onClose,
   onRecipeCreated,
 }) => {
-  // Mode: "ai" (default) or "manual"
-  const [isManualMode, setIsManualMode] = useState(false);
+  // Tab Mode: "ai" (default), "url", or "manual"
+  const [activeTab, setActiveTab] = useState<"ai" | "url" | "manual">("ai");
+
+  // URL Import State
+  const [urlInput, setUrlInput] = useState("");
 
   // AI Specifications State
   const [dishName, setDishName] = useState("");
@@ -66,15 +71,57 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
   const handleReset = () => {
     setDishName("");
     setNotes("");
+    setUrlInput("");
     setIncludeIngredientsText("");
     setExcludeIngredientsText("");
     setGeneratedRecipe(null);
-    setIsManualMode(false);
+    setActiveTab("ai");
   };
 
   const handleCloseModal = () => {
     handleReset();
     onClose();
+  };
+
+  const handleUrlGenerate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = urlInput.trim();
+    if (!trimmed) {
+      toast.error("Introdueix una adreça URL vàlida.");
+      return;
+    }
+    if (!/^https?:\/\//i.test(trimmed)) {
+      toast.error("L'adreça URL ha de començar per http:// o https://");
+      return;
+    }
+
+    setIsGenerating(true);
+    const toastId = toast.loading("Llegint la pàgina web i extraient la recepta amb IA...");
+    try {
+      const userPrefs = typeof window !== "undefined" ? LocalStore.getPreferences() : null;
+      const res = await fetch("/api/ai/recipe-from-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url: trimmed,
+          servings: Number(servings) || 2,
+          complexity,
+          customApiKey: userPrefs?.geminiApiKey,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success && data.recipe) {
+        setGeneratedRecipe({ ...data.recipe, complexity: data.recipe.complexity || complexity });
+        toast.success(`Recepta "${data.recipe.title}" extreta amb èxit! Revisa-la abans de desar.`, { id: toastId });
+      } else {
+        toast.error(data.error || "No s'ha pogut extreure la recepta d'aquesta URL.", { id: toastId });
+      }
+    } catch {
+      toast.error("Error de connexió en analitzar la URL.", { id: toastId });
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const handleAiGenerate = async (e: React.FormEvent) => {
@@ -230,20 +277,65 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
       title={
         generatedRecipe
           ? "Revisa la Recepta Generada"
-          : isManualMode
+          : activeTab === "url"
+          ? "Importa Recepta des d'URL Web"
+          : activeTab === "manual"
           ? "Nova Recepta Manual"
           : "Crea Nova Recepta amb IA"
       }
       description={
         generatedRecipe
           ? "La IA ha elaborat aquesta recepta seguint totes les teves especificacions. Revisa-la i desa-la."
-          : isManualMode
+          : activeTab === "url"
+          ? "Enganxa l'enllaç web d'una recepta i la IA n'extraurà automàticament tots els ingredients i passos."
+          : activeTab === "manual"
           ? "Introdueix manualment els detalls de la teva recepta."
           : "Indica les especificacions que vols i la IA generarà una recepta detallada i a mida."
       }
       maxWidth="2xl"
     >
       <div className="pt-2">
+        {!generatedRecipe && (
+          <div className="flex border-b border-zinc-200 dark:border-zinc-800 mb-4 gap-1">
+            <button
+              type="button"
+              onClick={() => setActiveTab("ai")}
+              className={`flex-1 py-2.5 px-3 text-xs sm:text-sm font-semibold border-b-2 flex items-center justify-center gap-1.5 transition ${
+                activeTab === "ai"
+                  ? "border-primary-600 text-primary-600 dark:text-primary-400 bg-primary-50/50 dark:bg-primary-950/20 rounded-t-xl"
+                  : "border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+              }`}
+            >
+              <Sparkles className="w-4 h-4" />
+              <span>Idea amb IA</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("url")}
+              className={`flex-1 py-2.5 px-3 text-xs sm:text-sm font-semibold border-b-2 flex items-center justify-center gap-1.5 transition ${
+                activeTab === "url"
+                  ? "border-primary-600 text-primary-600 dark:text-primary-400 bg-primary-50/50 dark:bg-primary-950/20 rounded-t-xl"
+                  : "border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+              }`}
+            >
+              <Globe className="w-4 h-4" />
+              <span>Des d&apos;URL Web</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("manual")}
+              className={`py-2.5 px-3 text-xs sm:text-sm font-semibold border-b-2 flex items-center justify-center gap-1.5 transition ${
+                activeTab === "manual"
+                  ? "border-primary-600 text-primary-600 dark:text-primary-400 bg-primary-50/50 dark:bg-primary-950/20 rounded-t-xl"
+                  : "border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+              }`}
+            >
+              <ChefHat className="w-4 h-4" />
+              <span>Manual</span>
+            </button>
+          </div>
+        )}
+
         {/* VIEW 1: PREVIEW OF GENERATED RECIPE */}
         {generatedRecipe ? (
           <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
@@ -407,8 +499,120 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
               </div>
             </div>
           </div>
-        ) : isManualMode ? (
-          /* VIEW 2: MANUAL FORM FALLBACK */
+        ) : activeTab === "url" ? (
+          /* VIEW 2: URL IMPORT FORM */
+          <form onSubmit={handleUrlGenerate} className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+            <div className="bg-sky-50/70 dark:bg-sky-950/20 border border-sky-200 dark:border-sky-800/50 rounded-2xl p-4 flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-sky-100 dark:bg-sky-900/40 text-sky-600 dark:text-sky-300 flex items-center justify-center shrink-0">
+                <Globe className="w-5 h-5" />
+              </div>
+              <div className="text-xs space-y-1">
+                <h4 className="font-bold text-zinc-900 dark:text-zinc-100">
+                  Extracció Intel·ligent des de qualsevol Web
+                </h4>
+                <p className="text-zinc-600 dark:text-zinc-400 leading-relaxed">
+                  Enganxa l&apos;enllaç d&apos;una recepta de qualsevol web o blog de cuina. La IA n&apos;analitzarà el contingut, extreurà els ingredients exactes, el temps i les instruccions, i en redactarà la recepta en català.
+                </p>
+              </div>
+            </div>
+
+            <div>
+              <Input
+                label="Enllaç web de la recepta (URL) *"
+                type="url"
+                placeholder="https://www.directoalpaladar.com/... o https://cuina.cat/..."
+                value={urlInput}
+                onChange={(e) => setUrlInput(e.target.value)}
+                required
+              />
+              <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1 flex items-center gap-1">
+                <LinkIcon className="w-3 h-3 text-primary-600" />
+                <span>Format admès: http:// o https://</span>
+              </p>
+            </div>
+
+            {/* Complexity Selector */}
+            <div>
+              <label className="text-xs sm:text-sm font-medium text-zinc-700 dark:text-zinc-300 block mb-1.5">
+                Tipus de recepta / Complexitat
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setComplexity("simple")}
+                  className={`py-2 px-3 rounded-xl text-xs font-semibold border flex items-center justify-center gap-1.5 transition ${
+                    complexity === "simple"
+                      ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 text-emerald-800 dark:text-emerald-300 shadow-xs"
+                      : "bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100"
+                  }`}
+                >
+                  🟢 Senzilla (dia a dia, ràpida)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setComplexity("complex")}
+                  className={`py-2 px-3 rounded-xl text-xs font-semibold border flex items-center justify-center gap-1.5 transition ${
+                    complexity === "complex"
+                      ? "bg-purple-50 dark:bg-purple-950/40 border-purple-500 text-purple-800 dark:text-purple-300 shadow-xs"
+                      : "bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100"
+                  }`}
+                >
+                  🟣 Complexa (elaborada)
+                </button>
+              </div>
+            </div>
+
+            {/* Servings */}
+            <div>
+              <Select
+                label="Adapta les racions a"
+                value={servings}
+                onChange={(e) => setServings(Number(e.target.value))}
+              >
+                <option value={1}>1 ració (individual)</option>
+                <option value={2}>2 racions (parella)</option>
+                <option value={4}>4 racions (família)</option>
+                <option value={6}>6 racions (reunió familiar)</option>
+              </Select>
+            </div>
+
+            {/* Public Direct Checkbox */}
+            <label className="flex items-start gap-2.5 p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={publishPublicly}
+                onChange={(e) => setPublishPublicly(e.target.checked)}
+                className="mt-0.5 rounded border-zinc-300 text-primary-600 focus:ring-primary-500"
+              />
+              <div className="text-xs">
+                <span className="font-semibold text-zinc-800 dark:text-zinc-200 block">
+                  🌐 Publicar directament al Receptari Públic Global
+                </span>
+                <span className="text-zinc-500 dark:text-zinc-400">
+                  Visible per a tothom immediatament sense necessitat d&apos;aprovació.
+                </span>
+              </div>
+            </label>
+
+            {/* Action Buttons */}
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-zinc-100 dark:border-zinc-800">
+              <Button type="button" variant="outline" onClick={handleCloseModal}>
+                Cancel·la
+              </Button>
+              <Button
+                type="submit"
+                variant="primary"
+                isLoading={isGenerating}
+                disabled={!urlInput.trim()}
+                className="bg-gradient-to-r from-primary-600 to-emerald-600 text-white shadow-md shadow-primary-500/20"
+              >
+                <Sparkles className="w-4 h-4 mr-1.5" />
+                Extreu i Genera Recepta
+              </Button>
+            </div>
+          </form>
+        ) : activeTab === "manual" ? (
+          /* VIEW 3: MANUAL FORM FALLBACK */
           <form onSubmit={handleManualSubmit} className="space-y-4 max-h-[65vh] overflow-y-auto pr-1">
             <div className="flex items-center justify-between pb-2 border-b border-zinc-200 dark:border-zinc-800">
               <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
@@ -416,7 +620,7 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
               </span>
               <button
                 type="button"
-                onClick={() => setIsManualMode(false)}
+                onClick={() => setActiveTab("ai")}
                 className="text-xs font-medium text-primary-600 hover:text-primary-700 flex items-center gap-1"
               >
                 <Sparkles className="w-3.5 h-3.5" />
@@ -710,7 +914,7 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
             <div className="flex items-center justify-between pt-3 border-t border-zinc-100 dark:border-zinc-800">
               <button
                 type="button"
-                onClick={() => setIsManualMode(true)}
+                onClick={() => setActiveTab("manual")}
                 className="text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 underline"
               >
                 Crear manualment sense IA

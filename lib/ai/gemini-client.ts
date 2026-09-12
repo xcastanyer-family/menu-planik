@@ -576,3 +576,268 @@ function generateFallbackPlan(params: {
     slots,
   };
 }
+
+// --- URL RECIPE EXTRACTION HELPERS & FUNCTION ---
+
+function extractJsonLdRecipes(html: string): any[] {
+  const jsonLdRegex = /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+  const recipes: any[] = [];
+  let match;
+  while ((match = jsonLdRegex.exec(html)) !== null) {
+    try {
+      const data = JSON.parse(match[1]);
+      const items = Array.isArray(data) ? data : data["@graph"] ? data["@graph"] : [data];
+      for (const item of items) {
+        if (
+          item &&
+          (item["@type"] === "Recipe" ||
+            (Array.isArray(item["@type"]) && item["@type"].includes("Recipe")))
+        ) {
+          recipes.push(item);
+        }
+      }
+    } catch {
+      // ignore JSON parse error in individual script tag
+    }
+  }
+  return recipes;
+}
+
+function extractCleanPageText(html: string): string {
+  let text = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, " ");
+  text = text.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, " ");
+  text = text.replace(/<svg\b[^<]*(?:(?!<\/svg>)<[^<]*)*<\/svg>/gi, " ");
+  text = text.replace(/<!--[\s\S]*?-->/g, " ");
+  text = text.replace(/<\/(p|div|h1|h2|h3|h4|h5|h6|li|tr|article|section)>/gi, "\n");
+  text = text.replace(/<br\s*[\/]?>/gi, "\n");
+  text = text.replace(/<[^>]+>/g, " ");
+  text = text
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+  text = text.replace(/[ \t]+/g, " ");
+  text = text.replace(/\n\s*\n+/g, "\n\n");
+  return text.trim().slice(0, 15000);
+}
+
+function parseIsoDuration(durationStr?: string): number | null {
+  if (!durationStr || typeof durationStr !== "string") return null;
+  const match = durationStr.match(/P(?:T(?:(\d+)H)?(?:(\d+)M)?)?/i);
+  if (!match) return null;
+  const hours = parseInt(match[1] || "0", 10);
+  const minutes = parseInt(match[2] || "0", 10);
+  return hours * 60 + minutes;
+}
+
+export async function extractRecipeFromUrlWithAI(params: {
+  url: string;
+  customApiKey?: string;
+  servings?: number;
+  complexity?: "simple" | "complex";
+}): Promise<Recipe> {
+  const trimmedUrl = params.url.trim();
+  if (!/^https?:\/\//i.test(trimmedUrl)) {
+    throw new Error("L'adreça URL no és vàlida. Ha de començar per http:// o https://");
+  }
+
+  // 1. Fetch webpage
+  let html = "";
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
+    const res = await fetch(trimmedUrl, {
+      signal: controller.signal,
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "ca,es;q=0.9,en;q=0.8",
+      },
+    });
+    clearTimeout(timeoutId);
+
+    if (!res.ok) {
+      throw new Error(`El servidor ha respost amb el codi d'estat ${res.status}`);
+    }
+    html = await res.text();
+  } catch (fetchErr: any) {
+    throw new Error(
+      `No s'ha pogut accedir a la URL indicada (${fetchErr.message || "error de connexió"}). Comprova que l'enllaç sigui públic i estigui actiu.`
+    );
+  }
+
+  // 2. Extract structured JSON-LD recipes if available
+  const jsonLdRecipes = extractJsonLdRecipes(html);
+  const jsonLdData = jsonLdRecipes.length > 0 ? JSON.stringify(jsonLdRecipes[0], null, 2) : "";
+
+  // 3. Extract cleaned text content
+  const pageText = extractCleanPageText(html);
+
+  // 4. Try AI generation with Gemini
+  const apiKey = getApiKey(params.customApiKey);
+  if (apiKey) {
+    try {
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+      const prompt = `
+Ets un xef professional i expert culinari multilingüe de màxima precisió.
+L'usuari t'ha proporcionat l'enllaç web d'una recepta: "${trimmedUrl}"
+
+Hem extret les dades i el contingut de la pàgina web:
+${jsonLdData ? `--- METADADES DE RECEPTA DETECTADES (JSON-LD) ---\n${jsonLdData.slice(0, 5000)}\n------------------------------------------------` : ""}
+--- TEXT DE LA PÀGINA WEB ---
+${pageText.slice(0, 10000)}
+-----------------------------
+
+INSTRUCCIONS DE MÀXIMA IMPORTÀNCIA:
+1. Analitza la informació de la recepta i extreu-ne tots els detalls.
+2. Tradueix o redacta tot el contingut en CATALÀ natural i correcte (títol, descripció, ingredients, passos).
+3. Adapta les racions a: ${params.servings || 2} persones (ajustant proporcionalment les quantitats dels ingredients).
+4. El títol ha de ser clar, gastronòmic i professional (ex: "Arròs negre amb sípia i allioli", "Pollastre al curri amb llet de coco", etc.).
+5. No incloguis mai fotografies ni enllaços d'imatge a la resposta.
+6. Avalua la complexitat: si la recepta requereix tècniques avançades o més de 35 minuts posa "complex", si és fàcil i ràpida del dia a dia posa "simple".${params.complexity ? ` (L'usuari ha demanat preferentment complexitat "${params.complexity}")` : ""}
+7. Detecta el tipus d'aliment per a l'atribut "foodIcon": "pasta", "rice", "fish", "meat", "legumes", "salad", "soup", "eggs", "vegetables", "dessert", "breakfast", o "other".
+8. Classifica cada ingredient en una categoria: "produce", "dairy", "meat", "bakery", "pantry", "frozen", "beverages", o "other".
+
+Respon EXCLUSIVAMENT amb un JSON vàlid amb aquesta estructura exacta:
+{
+  "title": "Nom de la recepta en català",
+  "description": "Breu resum atractiu del plat",
+  "prepTimeMinutes": 15,
+  "cookTimeMinutes": 25,
+  "servings": ${params.servings || 2},
+  "calories": 450,
+  "protein": 22,
+  "carbs": 45,
+  "fat": 16,
+  "complexity": "${params.complexity || "simple"}",
+  "foodIcon": "pasta",
+  "tags": ["Pasta", "Casolà"],
+  "dietaryTags": ["mediterranean"],
+  "ingredients": [
+    { "name": "Nom ingredient", "amount": 100, "unit": "g", "category": "produce" }
+  ],
+  "instructions": [
+    "Primer pas detallat...",
+    "Segon pas detallat..."
+  ]
+}
+`;
+
+      const result = await model.generateContent({
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: { responseMimeType: "application/json" },
+      });
+
+      let rawText = result.response.text().trim();
+      if (rawText.startsWith("```")) {
+        rawText = rawText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+      }
+      const parsed = JSON.parse(rawText);
+
+      return {
+        id: `rec-url-${Date.now()}`,
+        title: parsed.title || "Recepta importada",
+        description: parsed.description || `Recepta importada des de ${new URL(trimmedUrl).hostname}`,
+        prepTimeMinutes: Number(parsed.prepTimeMinutes) || 15,
+        cookTimeMinutes: Number(parsed.cookTimeMinutes) || 20,
+        servings: Number(parsed.servings) || params.servings || 2,
+        calories: Number(parsed.calories) || 450,
+        nutrition: {
+          calories: Number(parsed.calories) || 450,
+          protein: Number(parsed.protein) || 20,
+          carbs: Number(parsed.carbs) || 45,
+          fat: Number(parsed.fat) || 15,
+        },
+        complexity: params.complexity || parsed.complexity || "simple",
+        foodIcon: parsed.foodIcon || "other",
+        tags: Array.isArray(parsed.tags) ? parsed.tags : ["Importada"],
+        dietaryTags: Array.isArray(parsed.dietaryTags) ? parsed.dietaryTags : ["mediterranean"],
+        source: "custom",
+        ingredients: (parsed.ingredients || []).map((ing: any, i: number) => ({
+          id: `ing-url-${i}-${Math.random().toString(36).substring(2, 6)}`,
+          name: ing.name || "Ingredient",
+          amount: Number(ing.amount) || 1,
+          unit: ing.unit || "unitat",
+          category: ing.category || "pantry",
+        })),
+        instructions:
+          Array.isArray(parsed.instructions) && parsed.instructions.length > 0
+            ? parsed.instructions
+            : ["Preparar i cuinar seguint les indicacions originals."],
+      };
+    } catch (aiErr) {
+      console.warn("Error en el processament de Gemini per a la URL, passant al processador de seguretat:", aiErr);
+    }
+  }
+
+  // 5. Fallback: If no Gemini key or Gemini had an issue, extract directly from JSON-LD schema
+  if (jsonLdRecipes.length > 0) {
+    const raw = jsonLdRecipes[0];
+    const prepMinutes = parseIsoDuration(raw.prepTime) || 15;
+    const cookMinutes = parseIsoDuration(raw.cookTime) || 20;
+
+    let steps: string[] = [];
+    if (Array.isArray(raw.recipeInstructions)) {
+      steps = raw.recipeInstructions
+        .map((step: any) => (typeof step === "string" ? step : step.text || step.name || ""))
+        .filter(Boolean);
+    } else if (typeof raw.recipeInstructions === "string") {
+      steps = raw.recipeInstructions.split("\n").map((s: string) => s.trim()).filter(Boolean);
+    }
+
+    const rawIngredients: string[] = Array.isArray(raw.recipeIngredient) ? raw.recipeIngredient : [];
+    const parsedIngredients = rawIngredients.map((item, idx) => {
+      const match = item.match(/^([\d.,\/\s]+)?\s*([a-zA-Zà-úÀ-Ú]+)?\s+(?:de\s+)?(.+)$/);
+      return {
+        id: `ing-jsonld-${idx}`,
+        name: match ? match[3].trim() : item,
+        amount: match && match[1] ? parseFloat(match[1].replace(",", ".")) || 1 : 1,
+        unit: match && match[2] ? match[2].trim() : "unitat",
+        category: "pantry" as const,
+      };
+    });
+
+    const isComplex = prepMinutes + cookMinutes > 35 || steps.length > 6;
+
+    let host = "";
+    try {
+      host = new URL(trimmedUrl).hostname;
+    } catch {
+      host = trimmedUrl;
+    }
+
+    return {
+      id: `rec-url-${Date.now()}`,
+      title: raw.name || "Recepta importada",
+      description: raw.description || `Recepta importada des de ${host}`,
+      prepTimeMinutes: prepMinutes,
+      cookTimeMinutes: cookMinutes,
+      servings: params.servings || parseInt(raw.recipeYield) || 2,
+      calories: parseInt(raw.nutrition?.calories) || 450,
+      nutrition: {
+        calories: parseInt(raw.nutrition?.calories) || 450,
+        protein: 20,
+        carbs: 45,
+        fat: 15,
+      },
+      complexity: params.complexity || (isComplex ? "complex" : "simple"),
+      tags: ["Importada"],
+      dietaryTags: ["mediterranean"],
+      source: "custom",
+      ingredients:
+        parsedIngredients.length > 0
+          ? parsedIngredients
+          : [{ id: "1", name: "Ingredients segons la recepta", amount: 1, unit: "unitat", category: "other" }],
+      instructions: steps.length > 0 ? steps : ["Seguir les instruccions de la font."],
+    };
+  }
+
+  throw new Error(
+    "No s'ha pogut extreure automàticament la recepta d'aquesta pàgina web. Comprova que l'enllaç sigui correcte o introdueix la teva clau de Gemini a Configuració per a una extracció intel·ligent avançada."
+  );
+}

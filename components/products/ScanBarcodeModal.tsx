@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Product, GroceryCategory } from "@/types";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
@@ -8,6 +8,7 @@ import { SupabaseProductService } from "@/lib/supabase/products";
 import { LocalStore } from "@/lib/storage/local-store";
 import {
   decodeBarcodeFromImageSrc,
+  scanBarcodeFromVideoFrame,
   playBeepSound,
   triggerHapticFeedback,
 } from "@/lib/barcode/scanner";
@@ -17,8 +18,14 @@ import {
   ScanBarcode,
   Sparkles,
   Check,
+  AlertCircle,
   RefreshCw,
   Search,
+  Zap,
+  ZapOff,
+  SwitchCamera,
+  X,
+  ScanLine,
   Database,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -29,12 +36,19 @@ interface ScanBarcodeModalProps {
   onProductCreated?: (product: Product) => void;
 }
 
+type ScanMode = "idle" | "live" | "photo" | "manual";
+
 export const ScanBarcodeModal: React.FC<ScanBarcodeModalProps> = ({
   isOpen,
   onClose,
   onProductCreated,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const scanIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  const [scanMode, setScanMode] = useState<ScanMode>("idle");
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [manualBarcode, setManualBarcode] = useState("");
   const [isScanning, setIsScanning] = useState(false);
@@ -43,7 +57,31 @@ export const ScanBarcodeModal: React.FC<ScanBarcodeModalProps> = ({
   const [isExistingInDb, setIsExistingInDb] = useState(false);
   const [needBarcodeHelper, setNeedBarcodeHelper] = useState(false);
 
-  const resetState = () => {
+  // Controls de càmera en directe
+  const [torchAvailable, setTorchAvailable] = useState(false);
+  const [torchOn, setTorchOn] = useState(false);
+  const [facingMode, setFacingMode] = useState<"environment" | "user">("environment");
+  const [cameraError, setCameraError] = useState<string | null>(null);
+
+  // Atura el flux de vídeo i el bucle de detecció
+  const stopLiveCamera = useCallback(() => {
+    if (scanIntervalRef.current) {
+      clearInterval(scanIntervalRef.current);
+      scanIntervalRef.current = null;
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setTorchOn(false);
+    setTorchAvailable(false);
+  }, []);
+
+  const resetState = useCallback(() => {
+    stopLiveCamera();
     setSelectedImage(null);
     setManualBarcode("");
     setIsScanning(false);
@@ -51,16 +89,181 @@ export const ScanBarcodeModal: React.FC<ScanBarcodeModalProps> = ({
     setScannedProduct(null);
     setIsExistingInDb(false);
     setNeedBarcodeHelper(false);
-  };
+    setScanMode("idle");
+    setCameraError(null);
+  }, [stopLiveCamera]);
 
   const handleClose = () => {
     resetState();
     onClose();
   };
 
-  // Convert File to base64 i analitza
+  // Neteja quan es tanca el modal
+  useEffect(() => {
+    if (!isOpen) {
+      resetState();
+    }
+  }, [isOpen, resetState]);
+
+  // Consulta les dades del producte (primer a la nostra BD, després a Open Food Facts)
+  const queryProductData = useCallback(
+    async (imageBase64?: string, barcodeVal?: string) => {
+      setIsScanning(true);
+      try {
+        const prefs = LocalStore.getPreferences();
+        const res = await fetch("/api/ai/scan-product", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            imageBase64: imageBase64 || selectedImage || undefined,
+            barcode: barcodeVal || manualBarcode || undefined,
+            customApiKey: prefs.geminiApiKey || undefined,
+          }),
+        });
+
+        const data = await res.json();
+        if (data.success && data.product) {
+          const isDb = Boolean(
+            data.existsInDb || data.product.id || data.source === "database"
+          );
+          setIsExistingInDb(isDb);
+          setScannedProduct({
+            id: data.product.id,
+            familyId: data.product.familyId,
+            name: data.product.name || "",
+            brand: data.product.brand || "",
+            barcode: data.product.barcode || barcodeVal || manualBarcode || "",
+            category: data.product.category || "other",
+            defaultUnit: data.product.defaultUnit || "u.",
+            packageSize: data.product.packageSize,
+            imageUrl: data.product.imageUrl || selectedImage || undefined,
+            nutrition: data.product.nutrition,
+            allergens: data.product.allergens || [],
+            notes: data.product.notes || undefined,
+            source: data.product.source || (isDb ? "database" : "barcode"),
+          });
+          setNeedBarcodeHelper(false);
+          if (isDb) {
+            toast.success("Producte existent trobat a la teva base de dades!");
+          } else {
+            toast.success("Informació del producte recuperada!");
+          }
+        } else if (data.needBarcodeNumber) {
+          setNeedBarcodeHelper(true);
+          setScanMode("manual");
+          toast.info(data.error);
+        } else {
+          toast.error(data.error || "No s'ha trobat el producte a la base de dades.");
+          setNeedBarcodeHelper(true);
+          setScanMode("manual");
+        }
+      } catch (err) {
+        console.error(err);
+        toast.error("Error al connectar amb el servei de cerca.");
+        setNeedBarcodeHelper(true);
+      } finally {
+        setIsScanning(false);
+      }
+    },
+    [manualBarcode, selectedImage]
+  );
+
+  // Inicia la càmera en directe per escanejar en temps real (<150ms)
+  const startLiveCamera = async (facing: "environment" | "user" = facingMode) => {
+    stopLiveCamera();
+    setCameraError(null);
+    setScanMode("live");
+
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error("El teu navegador no permet l'accés directe a la càmera.");
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: facing,
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+        audio: false,
+      });
+
+      streamRef.current = stream;
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+
+      // Comprovar si té llanterna (torch)
+      const track = stream.getVideoTracks()[0];
+      const capabilities = track.getCapabilities ? (track.getCapabilities() as any) : null;
+      if (capabilities && "torch" in capabilities) {
+        setTorchAvailable(true);
+      }
+
+      // Bucle d'escaneig fotograma a fotograma en temps real
+      let isCheckingFrame = false;
+      scanIntervalRef.current = setInterval(async () => {
+        if (isCheckingFrame || !videoRef.current) return;
+        isCheckingFrame = true;
+
+        try {
+          const detected = await scanBarcodeFromVideoFrame(videoRef.current);
+          if (detected) {
+            // Èxit! Barcode detectat en directe
+            playBeepSound();
+            triggerHapticFeedback();
+            stopLiveCamera();
+            setManualBarcode(detected);
+            toast.success(`Codi detectat: ${detected}`);
+            await queryProductData(undefined, detected);
+          }
+        } catch (e) {
+          // Ignora errors puntuals per fotograma
+        } finally {
+          isCheckingFrame = false;
+        }
+      }, 150);
+    } catch (err: any) {
+      console.error("Error obrint la càmera:", err);
+      setCameraError(
+        err.name === "NotAllowedError"
+          ? "No s'ha donat permís per accedir a la càmera. Pots pujar una foto o escriure el codi manualment."
+          : err.message || "No s'ha pogut iniciar la càmera."
+      );
+      setScanMode("idle");
+    }
+  };
+
+  // Alterna la llanterna
+  const toggleTorch = async () => {
+    if (!streamRef.current) return;
+    const track = streamRef.current.getVideoTracks()[0];
+    if (!track) return;
+    try {
+      const nextState = !torchOn;
+      await (track as any).applyConstraints({
+        advanced: [{ torch: nextState }],
+      });
+      setTorchOn(nextState);
+    } catch (e) {
+      console.warn("Error alternant llanterna:", e);
+    }
+  };
+
+  // Canvia càmera frontal / posterior
+  const toggleFacingMode = () => {
+    const nextMode = facingMode === "environment" ? "user" : "environment";
+    setFacingMode(nextMode);
+    startLiveCamera(nextMode);
+  };
+
+  // Processament d'imatge estàtica (pujada de fitxer o foto capturada)
   const processImageFile = async (file: File) => {
+    stopLiveCamera();
     setIsScanning(true);
+    setScanMode("photo");
     setNeedBarcodeHelper(false);
 
     const reader = new FileReader();
@@ -68,7 +271,7 @@ export const ScanBarcodeModal: React.FC<ScanBarcodeModalProps> = ({
       const base64 = e.target?.result as string;
       setSelectedImage(base64);
 
-      // Reconeixement robust de codi de barres al navegador
+      // Reconeixement robust amb escalat i rotacions (0°, 90°, 270°, 180°)
       let detectedBarcode: string | null = null;
       try {
         detectedBarcode = await decodeBarcodeFromImageSrc(base64);
@@ -76,13 +279,13 @@ export const ScanBarcodeModal: React.FC<ScanBarcodeModalProps> = ({
           playBeepSound();
           triggerHapticFeedback();
           setManualBarcode(detectedBarcode);
-          toast.success(`Codi de barres detectat: ${detectedBarcode}`);
+          toast.success(`Codi de barres trobat: ${detectedBarcode}`);
         }
       } catch (err) {
-        console.warn("Error detectant codi localment:", err);
+        console.warn("Error en descodificar imatge:", err);
       }
 
-      // Crida a la cerca de dades (comprova BD primer, després Open Food Facts)
+      // Cerca dades del producte a la BD o a Open Food Facts
       await queryProductData(base64, detectedBarcode || undefined);
     };
     reader.readAsDataURL(file);
@@ -95,64 +298,10 @@ export const ScanBarcodeModal: React.FC<ScanBarcodeModalProps> = ({
     }
   };
 
-  const queryProductData = async (imageBase64?: string, barcodeVal?: string) => {
-    setIsScanning(true);
-    try {
-      const prefs = LocalStore.getPreferences();
-      const res = await fetch("/api/ai/scan-product", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          imageBase64: imageBase64 || selectedImage || undefined,
-          barcode: barcodeVal || manualBarcode || undefined,
-          customApiKey: prefs.geminiApiKey || undefined,
-        }),
-      });
-
-      const data = await res.json();
-      if (data.success && data.product) {
-        const isDb = Boolean(data.existsInDb || data.product.id || data.source === "database");
-        setIsExistingInDb(isDb);
-        setScannedProduct({
-          id: data.product.id,
-          familyId: data.product.familyId,
-          name: data.product.name || "",
-          brand: data.product.brand || "",
-          barcode: data.product.barcode || barcodeVal || manualBarcode || "",
-          category: data.product.category || "other",
-          defaultUnit: data.product.defaultUnit || "u.",
-          packageSize: data.product.packageSize,
-          imageUrl: data.product.imageUrl || selectedImage || undefined,
-          nutrition: data.product.nutrition,
-          allergens: data.product.allergens || [],
-          notes: data.product.notes || undefined,
-          source: data.product.source || (isDb ? "database" : "barcode"),
-        });
-        setNeedBarcodeHelper(false);
-        if (isDb) {
-          toast.success("Aquest producte ja existeix a la teva base de dades!");
-        } else {
-          toast.success("Informació del producte recuperada!");
-        }
-      } else if (data.needBarcodeNumber) {
-        setNeedBarcodeHelper(true);
-        toast.info(data.error);
-      } else {
-        toast.error(data.error || "No s'ha pogut reconèixer el producte.");
-        setNeedBarcodeHelper(true);
-      }
-    } catch (err) {
-      console.error(err);
-      toast.error("Error al connectar amb el servei de cerca.");
-      setNeedBarcodeHelper(true);
-    } finally {
-      setIsScanning(false);
-    }
-  };
-
   const handleManualBarcodeSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (!manualBarcode.trim()) return;
+    stopLiveCamera();
     queryProductData(selectedImage || undefined, manualBarcode.trim());
   };
 
@@ -167,13 +316,13 @@ export const ScanBarcodeModal: React.FC<ScanBarcodeModalProps> = ({
     try {
       let saved: Product | null = null;
       if (scannedProduct.id) {
-        // Actualitza el producte existent a la BD
+        // Actualització a la BD del producte existent
         saved = await SupabaseProductService.updateProduct(scannedProduct as Product);
         if (saved) {
           toast.success(`Producte "${saved.name}" actualitzat a la base de dades!`);
         }
       } else {
-        // Desa com a nou producte a la BD
+        // Creació de nou producte a la BD
         saved = await SupabaseProductService.addProduct(scannedProduct);
         if (saved) {
           toast.success(`Producte "${saved.name}" desat a la base de dades!`);
@@ -203,42 +352,117 @@ export const ScanBarcodeModal: React.FC<ScanBarcodeModalProps> = ({
       title="Escaneja Codi de Barres amb el Mòbil"
       maxWidth="lg"
     >
-      <div className="space-y-5">
-        {/* Input ocult per capturar foto amb la càmera del mòbil o fitxer */}
+      <div className="space-y-4">
+        {/* Input ocult per fitxer / foto */}
         <input
           ref={fileInputRef}
           type="file"
           accept="image/*"
-          capture="environment"
           onChange={handleFileInputChange}
           className="hidden"
         />
 
-        {!scannedProduct ? (
-          <div className="space-y-4">
-            {/* Botons principals d'activació: Càmera del mòbil o Galeria */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {/* 1. VISOR DE CÀMERA EN DIRECTE (TEMPS REAL) */}
+        {scanMode === "live" && (
+          <div className="relative overflow-hidden rounded-2xl bg-zinc-950 border border-zinc-800 shadow-2xl flex flex-col items-center justify-center min-h-[300px] sm:min-h-[360px]">
+            <video
+              ref={videoRef}
+              playsInline
+              autoPlay
+              muted
+              className="w-full h-72 sm:h-84 object-cover"
+            />
+
+            {/* Marc de punteria (reticle) per al codi de barres */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none p-4">
+              <div className="relative w-64 sm:w-72 h-36 sm:h-44 border-2 border-dashed border-emerald-400/80 rounded-2xl shadow-[0_0_0_9999px_rgba(0,0,0,0.45)] flex items-center justify-center overflow-hidden">
+                {/* Línia làser animada */}
+                <div className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_12px_#34d399] animate-bounce" />
+
+                {/* Cantoneres estil escàner */}
+                <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-emerald-400" />
+                <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-emerald-400" />
+                <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-emerald-400" />
+                <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-emerald-400" />
+              </div>
+
+              <div className="mt-3 px-3 py-1 bg-black/70 backdrop-blur-sm rounded-full border border-white/10 text-white text-xs flex items-center gap-1.5 shadow-md">
+                <ScanLine className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+                <span>Apunta i centra el codi de barres</span>
+              </div>
+            </div>
+
+            {/* Barra superior de controls de càmera */}
+            <div className="absolute top-3 right-3 flex items-center gap-2 z-10">
+              {torchAvailable && (
+                <button
+                  type="button"
+                  onClick={toggleTorch}
+                  className={`p-2.5 rounded-full backdrop-blur-md transition ${
+                    torchOn
+                      ? "bg-amber-500 text-black shadow-lg shadow-amber-500/30"
+                      : "bg-black/60 text-white hover:bg-black/80"
+                  }`}
+                  title="Llanterna"
+                >
+                  {torchOn ? <Zap className="w-4 h-4" /> : <ZapOff className="w-4 h-4" />}
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={toggleFacingMode}
+                className="p-2.5 rounded-full bg-black/60 hover:bg-black/80 text-white backdrop-blur-md transition"
+                title="Canviar càmera"
+              >
+                <SwitchCamera className="w-4 h-4" />
+              </button>
+
               <button
                 type="button"
                 onClick={() => {
-                  if (fileInputRef.current) {
-                    fileInputRef.current.setAttribute("capture", "environment");
-                    fileInputRef.current.click();
-                  }
+                  stopLiveCamera();
+                  setScanMode("idle");
                 }}
-                className="flex flex-col items-center justify-center p-6 rounded-2xl border-2 border-dashed border-primary-300 dark:border-primary-800/80 bg-primary-50/50 dark:bg-primary-950/20 hover:bg-primary-100/60 dark:hover:bg-primary-900/30 transition group text-center"
+                className="p-2.5 rounded-full bg-black/60 hover:bg-black/80 text-white backdrop-blur-md transition"
+                title="Tancar càmera"
               >
-                <div className="w-12 h-12 rounded-2xl bg-primary-600 text-white flex items-center justify-center shadow-md shadow-primary-600/30 group-hover:scale-110 transition-transform mb-3">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 2. MENÚ PRINCIPAL D'OPCIONS QUAN NO HI HA PRODUCTE DETECTAT */}
+        {!scannedProduct && scanMode !== "live" && (
+          <div className="space-y-4">
+            {cameraError && (
+              <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <span>{cameraError}</span>
+              </div>
+            )}
+
+            {/* Opcions d'acció */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Botó 1: Càmera en Directe (instantani) */}
+              <button
+                type="button"
+                onClick={() => startLiveCamera("environment")}
+                className="flex flex-col items-center justify-center p-5 rounded-2xl border-2 border-primary-500/30 dark:border-primary-500/20 bg-gradient-to-br from-primary-50/80 to-emerald-50/50 dark:from-primary-950/40 dark:to-emerald-950/20 hover:border-primary-500 hover:shadow-lg hover:shadow-primary-500/10 transition group text-center"
+              >
+                <div className="w-12 h-12 rounded-2xl bg-primary-600 text-white flex items-center justify-center shadow-md shadow-primary-600/30 group-hover:scale-110 transition-transform mb-2.5">
                   <Camera className="w-6 h-6" />
                 </div>
                 <span className="text-sm font-bold text-zinc-900 dark:text-white">
-                  Obre la Càmera del Mòbil
+                  Obre Càmera en Directe
                 </span>
                 <span className="text-xs text-zinc-500 mt-1">
-                  Apunta directament al codi de barres
+                  Reconeixement instantani en temps real
                 </span>
               </button>
 
+              {/* Botó 2: Capturar foto o Galeria */}
               <button
                 type="button"
                 onClick={() => {
@@ -247,43 +471,43 @@ export const ScanBarcodeModal: React.FC<ScanBarcodeModalProps> = ({
                     fileInputRef.current.click();
                   }
                 }}
-                className="flex flex-col items-center justify-center p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition group text-center"
+                className="flex flex-col items-center justify-center p-5 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:border-zinc-300 transition group text-center"
               >
-                <div className="w-12 h-12 rounded-2xl bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-200 flex items-center justify-center group-hover:scale-110 transition-transform mb-3">
+                <div className="w-12 h-12 rounded-2xl bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-200 flex items-center justify-center group-hover:scale-110 transition-transform mb-2.5">
                   <Upload className="w-6 h-6" />
                 </div>
                 <span className="text-sm font-bold text-zinc-900 dark:text-white">
-                  Puja una Foto
+                  Captura o Puja Foto
                 </span>
                 <span className="text-xs text-zinc-500 mt-1">
-                  Des de la galeria del telèfon o ordinador
+                  Des de la càmera o galeria del telèfon
                 </span>
               </button>
             </div>
 
-            {/* Imatge seleccionada (si n'hi ha) */}
+            {/* Imatge capturada (si n'hi ha) */}
             {selectedImage && (
               <div className="p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl border border-zinc-200 dark:border-zinc-700 flex items-center gap-3">
                 <img
                   src={selectedImage}
                   alt="Codi de barres"
-                  className="w-16 h-16 object-cover rounded-xl border border-zinc-200 dark:border-zinc-700"
+                  className="w-16 h-16 object-cover rounded-xl border border-zinc-200 dark:border-zinc-700 shrink-0"
                 />
                 <div className="text-xs flex-1">
-                  <p className="font-bold text-zinc-800 dark:text-zinc-200">Foto capturada</p>
+                  <p className="font-bold text-zinc-800 dark:text-zinc-200">Foto carregada</p>
                   <p className="text-zinc-500">
                     {manualBarcode
                       ? `Codi detectat: ${manualBarcode}`
-                      : "Pots introduir els dígits del codi a sota per recuperar la fitxa."}
+                      : "Si la foto està una mica borrosa, pots escriure els números directament a sota."}
                   </p>
                 </div>
               </div>
             )}
 
-            {/* Cercador directe de codi de barres */}
-            <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800 space-y-2">
+            {/* Formulari per introduir codi manualment */}
+            <div className="pt-3 border-t border-zinc-100 dark:border-zinc-800 space-y-2">
               <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300">
-                O introdueix el número del codi de barres:
+                O introdueix el número del codi de barres directament:
               </label>
               <form onSubmit={handleManualBarcodeSearch} className="flex gap-2">
                 <div className="relative flex-1">
@@ -291,7 +515,7 @@ export const ScanBarcodeModal: React.FC<ScanBarcodeModalProps> = ({
                   <input
                     type="text"
                     inputMode="numeric"
-                    placeholder="Escriu els dígits (ex: 8480000123456)"
+                    placeholder="Ex: 8480000123456"
                     value={manualBarcode}
                     onChange={(e) => setManualBarcode(e.target.value)}
                     className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono"
@@ -307,26 +531,31 @@ export const ScanBarcodeModal: React.FC<ScanBarcodeModalProps> = ({
                   Cercar Dades
                 </Button>
               </form>
+              <p className="text-[11px] text-zinc-400">
+                💡 Cerca a la teva pròpia base de dades i a Open Food Facts gratuïtament.
+              </p>
             </div>
 
             {/* Spinner mentre escaneja */}
             {isScanning && (
               <div className="p-6 bg-zinc-50 dark:bg-zinc-800/60 rounded-2xl border border-zinc-200 dark:border-zinc-700 flex flex-col items-center text-center space-y-3 animate-in fade-in">
-                <div className="w-10 h-10 rounded-full border-2 border-primary-600 border-t-transparent animate-spin" />
+                <div className="w-9 h-9 rounded-full border-2 border-primary-600 border-t-transparent animate-spin" />
                 <div>
                   <p className="text-sm font-bold text-zinc-800 dark:text-zinc-200 flex items-center justify-center gap-1.5">
                     <Sparkles className="w-4 h-4 text-primary-500" />
-                    Llegint codi i cercant informació del producte...
+                    Cercant informació del producte...
                   </p>
                   <p className="text-xs text-zinc-500 mt-0.5">
-                    Comprovant base de dades local i catàleg d&apos;aliments.
+                    Consultant base de dades local i catàleg d&apos;aliments.
                   </p>
                 </div>
               </div>
             )}
           </div>
-        ) : (
-          /* Formulari de confirmació del producte escanejat */
+        )}
+
+        {/* 3. FITXA DE CONFIRMACIÓ I EDICIÓ DEL PRODUCTE TROBAT */}
+        {scannedProduct && (
           <form onSubmit={handleSaveProduct} className="space-y-4 animate-in fade-in">
             {isExistingInDb ? (
               <div className="bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 p-3 rounded-xl flex items-center justify-between text-xs text-blue-800 dark:text-blue-300">
@@ -335,7 +564,7 @@ export const ScanBarcodeModal: React.FC<ScanBarcodeModalProps> = ({
                   <div>
                     <span className="font-bold">Aquest producte ja existeix a la teva base de dades!</span>
                     <p className="text-[11px] text-blue-600 dark:text-blue-400 mt-0.5">
-                      Es mostren les dades que tens guardades. Pots modificar-les o fer-lo servir directament.
+                      Es mostren les dades que tens guardades. Pots actualitzar-les o fer servir el producte directament.
                     </p>
                   </div>
                 </div>
@@ -344,6 +573,7 @@ export const ScanBarcodeModal: React.FC<ScanBarcodeModalProps> = ({
                   onClick={() => {
                     setScannedProduct(null);
                     setIsExistingInDb(false);
+                    setScanMode("idle");
                   }}
                   className="text-blue-700 dark:text-blue-400 hover:underline font-medium text-xs flex items-center gap-1 shrink-0 ml-2"
                 >
@@ -355,13 +585,14 @@ export const ScanBarcodeModal: React.FC<ScanBarcodeModalProps> = ({
               <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 p-3 rounded-xl flex items-center justify-between text-xs text-emerald-800 dark:text-emerald-300">
                 <span className="font-semibold flex items-center gap-1.5">
                   <Check className="w-4 h-4 text-emerald-600" />
-                  Producte identificat! Revisa les dades abans de desar.
+                  Producte identificat! Revisa i completa abans de desar.
                 </span>
                 <button
                   type="button"
                   onClick={() => {
                     setScannedProduct(null);
                     setIsExistingInDb(false);
+                    setScanMode("idle");
                   }}
                   className="text-emerald-700 dark:text-emerald-400 hover:underline font-medium text-xs flex items-center gap-1"
                 >
@@ -465,7 +696,7 @@ export const ScanBarcodeModal: React.FC<ScanBarcodeModalProps> = ({
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                    Mida / Format (g / ml)
+                    Format (g / ml)
                   </label>
                   <input
                     type="number"
@@ -502,6 +733,7 @@ export const ScanBarcodeModal: React.FC<ScanBarcodeModalProps> = ({
                 onClick={() => {
                   setScannedProduct(null);
                   setIsExistingInDb(false);
+                  setScanMode("idle");
                 }}
               >
                 Cancel·la
@@ -537,7 +769,7 @@ export const ScanBarcodeModal: React.FC<ScanBarcodeModalProps> = ({
                   {isSaving
                     ? "Desant..."
                     : isExistingInDb
-                    ? "Actualitza a la BD"
+                    ? "Actualitza dades a la BD"
                     : "Desa a la Base de Dades"}
                 </Button>
               </div>

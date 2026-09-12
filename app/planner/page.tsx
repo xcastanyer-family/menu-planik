@@ -28,6 +28,7 @@ import {
   Lightbulb,
   Flame,
   Users,
+  ArrowUpDown,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -170,6 +171,55 @@ export default function PlannerPage() {
     setMealPlan(updatedPlan);
   };
 
+  const handleSwapLunchDinner = (day: DayOfWeek) => {
+    if (!mealPlan) return;
+
+    const lunchSlot = mealPlan.slots.find((s) => s.day === day && s.mealType === "lunch");
+    const dinnerSlot = mealPlan.slots.find((s) => s.day === day && s.mealType === "dinner");
+
+    if (!lunchSlot || !dinnerSlot) return;
+
+    if (!lunchSlot.recipe && !dinnerSlot.recipe) {
+      toast.info(`No hi ha cap plat assignat a dinar ni sopar el ${formatDayName(day)}.`);
+      return;
+    }
+
+    const updatedSlots = mealPlan.slots.map((s) => {
+      if (s.id === lunchSlot.id) {
+        return {
+          ...s,
+          recipeId: dinnerSlot.recipeId,
+          recipe: dinnerSlot.recipe,
+        };
+      }
+      if (s.id === dinnerSlot.id) {
+        return {
+          ...s,
+          recipeId: lunchSlot.recipeId,
+          recipe: lunchSlot.recipe,
+        };
+      }
+      return s;
+    });
+
+    const updatedPlan = {
+      ...mealPlan,
+      slots: updatedSlots,
+      updatedAt: new Date().toISOString(),
+    };
+
+    LocalStore.saveMealPlan(updatedPlan);
+    setMealPlan(updatedPlan);
+
+    // Update groceries automatically
+    const updatedGroceries = generateGroceriesFromPlan(updatedPlan, LocalStore.getPantry());
+    LocalStore.saveGroceries(updatedGroceries);
+
+    toast.success(`Intercanviat dinar i sopar de ${formatDayName(day)}!`, {
+      icon: "🔄",
+    });
+  };
+
   const handleRegenerateSlotWithAI = async (slotId: string) => {
     if (!mealPlan) return;
     const targetSlot = mealPlan.slots.find((s) => s.id === slotId);
@@ -308,19 +358,52 @@ export default function PlannerPage() {
               {/* Day Slots */}
               <div className="space-y-2.5">
                 {/* Main Meals: Dinar & Sopar (Comida i Sopar com a protagonistes) */}
-                {daySlots
-                  .filter((s) => s.mealType !== "breakfast")
-                  .map((slot) => (
-                    <MealSlotCard
-                      key={slot.id}
-                      slot={slot}
-                      onSelectRecipe={(recipe) => setSelectedRecipe(recipe)}
-                      onSwapMeal={() => setSwapSlot(slot)}
-                      onToggleCompleted={handleToggleCompleted}
-                      onRegenerateWithAI={handleRegenerateSlotWithAI}
-                      isRegenerating={regeneratingSlotId === slot.id}
-                    />
-                  ))}
+                {(() => {
+                  const lunchSlot = daySlots.find((s) => s.mealType === "lunch");
+                  const dinnerSlot = daySlots.find((s) => s.mealType === "dinner");
+                  return (
+                    <div className="space-y-2">
+                      {lunchSlot && (
+                        <MealSlotCard
+                          key={lunchSlot.id}
+                          slot={lunchSlot}
+                          onSelectRecipe={(recipe) => setSelectedRecipe(recipe)}
+                          onSwapMeal={() => setSwapSlot(lunchSlot)}
+                          onToggleCompleted={handleToggleCompleted}
+                          onRegenerateWithAI={handleRegenerateSlotWithAI}
+                          isRegenerating={regeneratingSlotId === lunchSlot.id}
+                          onSwapLunchDinner={handleSwapLunchDinner}
+                        />
+                      )}
+
+                      {/* Botó directe per intercanviar Dinar ⇄ Sopar */}
+                      <div className="flex justify-center -my-0.5 py-0.5">
+                        <button
+                          type="button"
+                          onClick={() => handleSwapLunchDinner(day)}
+                          title={`Intercanvia el dinar i el sopar de ${formatDayName(day)}`}
+                          className="group inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-zinc-100 hover:bg-emerald-50 text-zinc-600 hover:text-emerald-700 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:text-zinc-400 dark:hover:text-emerald-300 border border-zinc-200/80 dark:border-zinc-700 transition shadow-2xs cursor-pointer"
+                        >
+                          <ArrowUpDown className="w-3 h-3 text-zinc-400 group-hover:text-emerald-600 transition" />
+                          <span>Dinar ⇄ Sopar</span>
+                        </button>
+                      </div>
+
+                      {dinnerSlot && (
+                        <MealSlotCard
+                          key={dinnerSlot.id}
+                          slot={dinnerSlot}
+                          onSelectRecipe={(recipe) => setSelectedRecipe(recipe)}
+                          onSwapMeal={() => setSwapSlot(dinnerSlot)}
+                          onToggleCompleted={handleToggleCompleted}
+                          onRegenerateWithAI={handleRegenerateSlotWithAI}
+                          isRegenerating={regeneratingSlotId === dinnerSlot.id}
+                          onSwapLunchDinner={handleSwapLunchDinner}
+                        />
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* Idea Esmorzar: Ocult/Plegat per defecte com a suggeriment del dia */}
                 {(() => {
@@ -431,19 +514,56 @@ export default function PlannerPage() {
 
           <div className="space-y-3">
             {/* Main Meals: Dinar & Sopar */}
-            {mealPlan.slots
-              .filter((s) => s.day === selectedDay && s.mealType !== "breakfast")
-              .map((slot) => (
-                <MealSlotCard
-                  key={slot.id}
-                  slot={slot}
-                  onSelectRecipe={(recipe) => setSelectedRecipe(recipe)}
-                  onSwapMeal={() => setSwapSlot(slot)}
-                  onToggleCompleted={handleToggleCompleted}
-                  onRegenerateWithAI={handleRegenerateSlotWithAI}
-                  isRegenerating={regeneratingSlotId === slot.id}
-                />
-              ))}
+            {(() => {
+              const lunchSlot = mealPlan.slots.find(
+                (s) => s.day === selectedDay && s.mealType === "lunch"
+              );
+              const dinnerSlot = mealPlan.slots.find(
+                (s) => s.day === selectedDay && s.mealType === "dinner"
+              );
+              return (
+                <div className="space-y-2.5">
+                  {lunchSlot && (
+                    <MealSlotCard
+                      key={lunchSlot.id}
+                      slot={lunchSlot}
+                      onSelectRecipe={(recipe) => setSelectedRecipe(recipe)}
+                      onSwapMeal={() => setSwapSlot(lunchSlot)}
+                      onToggleCompleted={handleToggleCompleted}
+                      onRegenerateWithAI={handleRegenerateSlotWithAI}
+                      isRegenerating={regeneratingSlotId === lunchSlot.id}
+                      onSwapLunchDinner={handleSwapLunchDinner}
+                    />
+                  )}
+
+                  {/* Botó destacat per intercanviar Dinar ⇄ Sopar en mòbil */}
+                  <div className="flex justify-center py-0.5">
+                    <button
+                      type="button"
+                      onClick={() => handleSwapLunchDinner(selectedDay)}
+                      title={`Intercanvia el dinar i el sopar de ${formatDayName(selectedDay)}`}
+                      className="group inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-zinc-100 hover:bg-emerald-50 text-zinc-700 hover:text-emerald-700 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:text-zinc-300 dark:hover:text-emerald-300 border border-zinc-200 dark:border-zinc-700 transition shadow-xs cursor-pointer"
+                    >
+                      <ArrowUpDown className="w-3.5 h-3.5 text-emerald-600 transition group-hover:rotate-180 duration-200" />
+                      <span>Intercanvia Dinar ⇄ Sopar</span>
+                    </button>
+                  </div>
+
+                  {dinnerSlot && (
+                    <MealSlotCard
+                      key={dinnerSlot.id}
+                      slot={dinnerSlot}
+                      onSelectRecipe={(recipe) => setSelectedRecipe(recipe)}
+                      onSwapMeal={() => setSwapSlot(dinnerSlot)}
+                      onToggleCompleted={handleToggleCompleted}
+                      onRegenerateWithAI={handleRegenerateSlotWithAI}
+                      isRegenerating={regeneratingSlotId === dinnerSlot.id}
+                      onSwapLunchDinner={handleSwapLunchDinner}
+                    />
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Idea Esmorzar: Ocult/Plegat per defecte */}
             {(() => {
@@ -525,6 +645,16 @@ export default function PlannerPage() {
         slot={swapSlot}
         recipes={recipes}
         onSelectRecipe={handleUpdateSlot}
+        oppositeSlot={
+          swapSlot && (swapSlot.mealType === "lunch" || swapSlot.mealType === "dinner")
+            ? mealPlan.slots.find(
+                (s) =>
+                  s.day === swapSlot.day &&
+                  s.mealType === (swapSlot.mealType === "lunch" ? "dinner" : "lunch")
+              )
+            : null
+        }
+        onSwapLunchDinner={handleSwapLunchDinner}
       />
 
       <RecipeDetailModal

@@ -3,8 +3,8 @@
 import React, { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
-import { Recipe, MealSlot } from "@/types";
-import { Search, Sparkles, Clock, Flame } from "lucide-react";
+import { Recipe, MealSlot, DayOfWeek } from "@/types";
+import { Search, Sparkles, Clock, Flame, ArrowUpDown } from "lucide-react";
 import { formatDayName, formatMealTypeName, getRecipeFoodInfo, getRecipeComplexity } from "@/lib/utils";
 import { LocalStore } from "@/lib/storage/local-store";
 import { toast } from "sonner";
@@ -15,6 +15,8 @@ interface SwapMealModalProps {
   slot: MealSlot | null;
   recipes: Recipe[];
   onSelectRecipe: (slotId: string, recipe: Recipe) => void;
+  oppositeSlot?: MealSlot | null;
+  onSwapLunchDinner?: (day: DayOfWeek) => void;
 }
 
 export const SwapMealModal: React.FC<SwapMealModalProps> = ({
@@ -23,6 +25,8 @@ export const SwapMealModal: React.FC<SwapMealModalProps> = ({
   slot,
   recipes,
   onSelectRecipe,
+  oppositeSlot,
+  onSwapLunchDinner,
 }) => {
   const [search, setSearch] = useState("");
   const [complexityFilter, setComplexityFilter] = useState<"all" | "simple" | "complex">("all");
@@ -113,8 +117,8 @@ export const SwapMealModal: React.FC<SwapMealModalProps> = ({
             onClick={() => setComplexityFilter("all")}
             className={`flex-1 py-1.5 px-2 text-xs font-semibold rounded-lg transition ${
               complexityFilter === "all"
-                ? "bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-xs"
-                : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-900"
+                ? "bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-xs"
+                : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200"
             }`}
           >
             Totes ({recipes.length})
@@ -122,26 +126,53 @@ export const SwapMealModal: React.FC<SwapMealModalProps> = ({
           <button
             type="button"
             onClick={() => setComplexityFilter("simple")}
-            className={`flex-1 py-1.5 px-2 text-xs font-semibold rounded-lg transition flex items-center justify-center gap-1 ${
+            className={`flex-1 py-1.5 px-2 text-xs font-semibold rounded-lg transition ${
               complexityFilter === "simple"
-                ? "bg-white dark:bg-zinc-700 text-emerald-700 dark:text-emerald-300 shadow-xs"
-                : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-900"
+                ? "bg-white dark:bg-zinc-700 text-emerald-700 dark:text-emerald-300 shadow-xs font-bold"
+                : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200"
             }`}
           >
-            🟢 Senzilles ({simpleCount})
+            ⚡ Senzilles ({simpleCount})
           </button>
           <button
             type="button"
             onClick={() => setComplexityFilter("complex")}
-            className={`flex-1 py-1.5 px-2 text-xs font-semibold rounded-lg transition flex items-center justify-center gap-1 ${
+            className={`flex-1 py-1.5 px-2 text-xs font-semibold rounded-lg transition ${
               complexityFilter === "complex"
-                ? "bg-white dark:bg-zinc-700 text-purple-700 dark:text-purple-300 shadow-xs"
-                : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-900"
+                ? "bg-white dark:bg-zinc-700 text-amber-700 dark:text-amber-300 shadow-xs font-bold"
+                : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200"
             }`}
           >
-            🟣 Complexes ({complexCount})
+            👨‍🍳 Complexes ({complexCount})
           </button>
         </div>
+
+        {/* Quick direct swap with opposite meal (Lunch <-> Dinner) */}
+        {(slot.mealType === "lunch" || slot.mealType === "dinner") && oppositeSlot && onSwapLunchDinner && (
+          <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-emerald-50/80 dark:bg-emerald-950/25 border border-emerald-200 dark:border-emerald-800/40">
+            <div className="min-w-0 flex-1">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300 block">
+                Intercanvi directe amb el {formatMealTypeName(oppositeSlot.mealType)}
+              </span>
+              <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 truncate">
+                {oppositeSlot.recipe ? oppositeSlot.recipe.title : "Cap plat assignat"}
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                onSwapLunchDinner(slot.day);
+                onClose();
+              }}
+              className="border-emerald-300 dark:border-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200 shrink-0"
+            >
+              <ArrowUpDown className="w-3.5 h-3.5 mr-1" />
+              Intercanvia Dinar ⇄ Sopar
+            </Button>
+          </div>
+        )}
 
         {/* Recipes List */}
         <div className="max-h-80 overflow-y-auto space-y-2 pr-1">

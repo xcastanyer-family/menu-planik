@@ -1,9 +1,9 @@
 "use client";
 
 import React from "react";
-import { MealSlot, Recipe } from "@/types";
+import { MealSlot, Recipe, DayOfWeek } from "@/types";
 import { formatMealTypeName, triggerConfetti } from "@/lib/utils";
-import { Clock, Flame, Sparkles, RefreshCw, CheckCircle2, Utensils } from "lucide-react";
+import { Clock, Flame, Sparkles, RefreshCw, CheckCircle2, Utensils, ArrowUpDown } from "lucide-react";
 import { toast } from "sonner";
 
 interface MealSlotCardProps {
@@ -13,6 +13,7 @@ interface MealSlotCardProps {
   onToggleCompleted: (slotId: string) => void;
   onRegenerateWithAI: (slotId: string) => void;
   isRegenerating?: boolean;
+  onSwapLunchDinner?: (day: DayOfWeek) => void;
 }
 
 export const MealSlotCard: React.FC<MealSlotCardProps> = ({
@@ -22,6 +23,7 @@ export const MealSlotCard: React.FC<MealSlotCardProps> = ({
   onToggleCompleted,
   onRegenerateWithAI,
   isRegenerating,
+  onSwapLunchDinner,
 }) => {
   const recipe = slot.recipe;
   const isDone = !!slot.isCompleted;
@@ -64,6 +66,22 @@ export const MealSlotCard: React.FC<MealSlotCardProps> = ({
         </div>
 
         <div className="flex items-center gap-1">
+          {(slot.mealType === "lunch" || slot.mealType === "dinner") && onSwapLunchDinner && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onSwapLunchDinner(slot.day);
+              }}
+              title={
+                slot.mealType === "lunch"
+                  ? "Intercanvia aquest dinar pel sopar"
+                  : "Intercanvia aquest sopar pel dinar"
+              }
+              className="p-1 rounded-lg text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors"
+            >
+              <ArrowUpDown className="w-3.5 h-3.5" />
+            </button>
+          )}
           <button
             onClick={handleToggle}
             title={isDone ? "Marca com a pendent" : "Marca com a menjat"}
@@ -119,6 +137,15 @@ export const MealSlotCard: React.FC<MealSlotCardProps> = ({
 
             {/* Quick Action Buttons */}
             <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+              {(slot.mealType === "lunch" || slot.mealType === "dinner") && onSwapLunchDinner && (
+                <button
+                  onClick={() => onSwapLunchDinner(slot.day)}
+                  title={slot.mealType === "lunch" ? "Canvia pel sopar" : "Canvia pel dinar"}
+                  className="p-1 rounded-md text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition"
+                >
+                  <ArrowUpDown className="w-3.5 h-3.5" />
+                </button>
+              )}
               <button
                 onClick={() => onRegenerateWithAI(slot.id)}
                 disabled={isRegenerating}
@@ -157,6 +184,16 @@ export const MealSlotCard: React.FC<MealSlotCardProps> = ({
             >
               Tria
             </button>
+            {(slot.mealType === "lunch" || slot.mealType === "dinner") && onSwapLunchDinner && (
+              <button
+                onClick={() => onSwapLunchDinner(slot.day)}
+                title={slot.mealType === "lunch" ? "Canvia pel sopar" : "Canvia pel dinar"}
+                className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 hover:text-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-1 rounded-lg transition"
+              >
+                <ArrowUpDown className="w-3 h-3" />
+                {slot.mealType === "lunch" ? "Sopar" : "Dinar"}
+              </button>
+            )}
           </div>
         </div>
       )}

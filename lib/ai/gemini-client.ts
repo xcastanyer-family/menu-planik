@@ -773,6 +773,7 @@ export async function extractRecipeFromUrlWithAI(params: {
 
   // 1. Fetch webpage with full browser simulation
   let html = "";
+  let effectiveUrl = trimmedUrl;
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000);
@@ -792,18 +793,94 @@ export async function extractRecipeFromUrlWithAI(params: {
       throw new Error(`El servidor ha respost amb el codi d'estat ${res.status}`);
     }
     html = await res.text();
+    effectiveUrl = res.url || trimmedUrl;
   } catch (fetchErr: any) {
     throw new Error(
       `No s'ha pogut accedir a la URL indicada (${fetchErr.message || "error de connexió"}). Comprova que l'enllaç sigui públic i estigui actiu.`
     );
   }
 
+  // 1.5. Category / Collection page auto-resolution
+  // If the user entered a category or collection URL with multiple recipes (e.g. /pasta-recetas/macarrones/ or CollectionPage),
+  // automatically locate the top specific recipe link in that collection and fetch it directly!
+  const hasDirectRecipe = /"@type"\s*:\s*(?:"Recipe"|\[[^\]]*"Recipe"[^\]]*\])/i.test(html);
+  const isCollection =
+    !hasDirectRecipe &&
+    (/"@type"\s*:\s*"CollectionPage"/i.test(html) ||
+      /(?:todas|categoria|category|tag|seccion|temas)\/recetas/i.test(effectiveUrl) ||
+      /\/recetas\/[^\/]+\/[^\/]+\/$/.test(effectiveUrl) ||
+      /Recetas con|Recetas de|Las mejores recetas/i.test(
+        html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i)?.[1] || ""
+      ));
+
+  if (isCollection) {
+    try {
+      const origin = new URL(effectiveUrl).origin;
+      const links = [...html.matchAll(/<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)];
+      const candidates: { href: string; text: string; isDessert: boolean }[] = [];
+      const seen = new Set<string>();
+
+      const uParts = new URL(effectiveUrl).pathname.split("/").filter(Boolean);
+      const lastKeyword = uParts[uParts.length - 1] || "";
+      const searchKey = lastKeyword.length > 3 ? lastKeyword.slice(0, 5) : "";
+
+      for (const m of links) {
+        let href = m[1];
+        if (href.startsWith("/")) href = origin + href;
+        if (!href.startsWith("http")) continue;
+        if (href === effectiveUrl || href.startsWith(effectiveUrl)) continue;
+        if (!href.includes(new URL(effectiveUrl).hostname)) continue;
+        if (href.includes("/categoria/") || href.includes("/tag/") || href.includes("/todas/")) continue;
+
+        const linkText = m[2].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+        if (
+          linkText.length > 5 &&
+          (!searchKey ||
+            new RegExp(searchKey, "i").test(href) ||
+            new RegExp(searchKey, "i").test(linkText))
+        ) {
+          if (!seen.has(href)) {
+            seen.add(href);
+            const isDessert = /postre|dulce|pastel|tarta|bizcocho/i.test(href + " " + linkText);
+            candidates.push({ href, text: linkText, isDessert });
+          }
+        }
+      }
+
+      candidates.sort((a, b) => (a.isDessert ? 1 : 0) - (b.isDessert ? 1 : 0));
+
+      if (candidates.length > 0) {
+        const targetRecipeUrl = candidates[0].href;
+        const subController = new AbortController();
+        const subTimeout = setTimeout(() => subController.abort(), 12000);
+        const subRes = await fetch(targetRecipeUrl, {
+          signal: subController.signal,
+          redirect: "follow",
+          headers: {
+            "User-Agent":
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "ca,es;q=0.9,en;q=0.8",
+          },
+        });
+        clearTimeout(subTimeout);
+
+        if (subRes.ok) {
+          html = await subRes.text();
+          effectiveUrl = targetRecipeUrl;
+        }
+      }
+    } catch (catErr) {
+      console.warn("Could not auto-resolve category recipe link, continuing with initial HTML:", catErr);
+    }
+  }
+
   // 2. Extract page metadata (title, slug, og tags, target dish identification)
-  const meta = extractPageMetadata(html, trimmedUrl);
+  const meta = extractPageMetadata(html, effectiveUrl);
 
   // 3. Extract JSON-LD and select the recipe matching this specific dish
   const allJsonLd = extractJsonLdRecipes(html);
-  const bestJsonLd = selectBestJsonLdRecipe(allJsonLd, meta, trimmedUrl);
+  const bestJsonLd = selectBestJsonLdRecipe(allJsonLd, meta, effectiveUrl);
   const jsonLdData = bestJsonLd ? JSON.stringify(bestJsonLd, null, 2) : "";
 
   // 4. Extract clean article text and HTML ingredients/steps
@@ -819,7 +896,7 @@ export async function extractRecipeFromUrlWithAI(params: {
 
       const prompt = `
 Ets un xef professional i expert culinari multilingüe de màxima precisió.
-L'usuari t'ha proporcionat l'enllaç web d'una recepta: "${trimmedUrl}"
+L'usuari t'ha proporcionat l'enllaç web d'una recepta: "${effectiveUrl}"
 
 --- IDENTIFICACIÓ DEL PLAT PRINCIPAL ---
 TÍTOL DETECTAT A LA PÀGINA: "${meta.bestTitle || meta.slug}"
@@ -885,7 +962,7 @@ Respon EXCLUSIVAMENT amb un JSON vàlid amb aquesta estructura exacta:
       return {
         id: `rec-url-${Date.now()}`,
         title: parsed.title || meta.bestTitle || "Recepta importada",
-        description: parsed.description || meta.ogDesc || `Recepta importada des de ${new URL(trimmedUrl).hostname}`,
+        description: parsed.description || meta.ogDesc || `Recepta importada des de ${new URL(effectiveUrl).hostname}`,
         prepTimeMinutes: Number(parsed.prepTimeMinutes) || 15,
         cookTimeMinutes: Number(parsed.cookTimeMinutes) || 20,
         servings: Number(parsed.servings) || params.servings || 2,
@@ -948,9 +1025,9 @@ Respon EXCLUSIVAMENT amb un JSON vàlid amb aquesta estructura exacta:
 
     let host = "";
     try {
-      host = new URL(trimmedUrl).hostname;
+      host = new URL(effectiveUrl).hostname;
     } catch {
-      host = trimmedUrl;
+      host = effectiveUrl;
     }
 
     return {

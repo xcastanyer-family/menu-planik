@@ -28,6 +28,7 @@ export default function SettingsPage() {
   const [session, setSession] = useState<UserSession>(LocalStore.getCurrentSession());
   const [allergiesText, setAllergiesText] = useState("");
   const [dislikesText, setDislikesText] = useState("");
+  const [isResetting, setIsResetting] = useState(false);
 
   const refreshSession = () => {
     setSession(LocalStore.getCurrentSession());
@@ -120,11 +121,25 @@ export default function SettingsPage() {
     reader.readAsText(file);
   };
 
-  const handleResetData = () => {
-    if (confirm("Segur que vols restablir totes les receptes, menús i rebost als valors predeterminats?")) {
+  const handleResetData = async () => {
+    if (!confirm("Segur que vols inicialitzar la base de dades (receptes, menús, rebost i compra) i restablir tant el núvol com les dades locals?")) {
+      return;
+    }
+
+    setIsResetting(true);
+    const toastId = toast.loading("Inicialitzant la base de dades...");
+    try {
+      await fetch("/api/init-db", { method: "POST" });
       LocalStore.resetAllToDefault();
-      toast.success("Dades restablertes.");
-      setTimeout(() => window.location.reload(), 500);
+      toast.success("Base de dades i dades locals inicialitzades amb èxit!", { id: toastId });
+      setTimeout(() => window.location.reload(), 600);
+    } catch (e) {
+      console.error(e);
+      LocalStore.resetAllToDefault();
+      toast.success("Dades restablertes localment.", { id: toastId });
+      setTimeout(() => window.location.reload(), 600);
+    } finally {
+      setIsResetting(false);
     }
   };
 
@@ -339,9 +354,15 @@ export default function SettingsPage() {
             />
           </label>
 
-          <Button variant="danger" onClick={handleResetData} className="w-full">
+          <Button
+            variant="danger"
+            onClick={handleResetData}
+            isLoading={isResetting}
+            disabled={isResetting}
+            className="w-full"
+          >
             <RotateCcw className="w-4 h-4" />
-            Restableix Dades Inicials
+            Inicialitza Base de Dades
           </Button>
         </div>
       </div>

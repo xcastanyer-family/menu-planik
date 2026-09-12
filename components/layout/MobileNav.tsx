@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Calendar, BookOpen, ClipboardList, ShoppingCart, Package, Users, Settings } from "lucide-react";
+import { Calendar, BookOpen, ScanBarcode, ClipboardList, ShoppingCart, Package, Users, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LocalStore } from "@/lib/storage/local-store";
 import { UserSession } from "@/types";
@@ -41,10 +41,10 @@ export const MobileNav: React.FC = () => {
   const navItems = [
     { href: "/planner", label: "Menú", icon: Calendar },
     { href: "/recipes", label: "Receptes", icon: BookOpen },
+    { href: "/products", label: "Productes", icon: ScanBarcode },
     { href: "/groceries", label: "Llista", icon: ClipboardList },
     { href: "/compra", label: "Compra", icon: ShoppingCart, badge: pendingCount > 0 ? pendingCount : undefined },
     { href: "/pantry", label: "Rebost", icon: Package },
-    { href: "/family", label: "Família", icon: Users },
     { href: "/settings", label: "Perfil", icon: Settings },
   ];
 

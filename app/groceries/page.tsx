@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { GroceryItem, PublishedShoppingList } from "@/types";
 import { LocalStore } from "@/lib/storage/local-store";
 import { generateGroceriesFromPlan } from "@/lib/storage/mock-data";
+import { SupabaseProductService } from "@/lib/supabase/products";
 import { GroceryListView } from "@/components/groceries/GroceryListView";
 import { AddGroceryItemModal } from "@/components/groceries/AddGroceryItemModal";
 import { ShareGroceryModal } from "@/components/groceries/ShareGroceryModal";
@@ -54,13 +55,14 @@ export default function GroceriesPage() {
     toast.success("Articles completats eliminats!");
   };
 
-  const handleSyncFromMealPlan = () => {
+  const handleSyncFromMealPlan = async () => {
     const currentPlan = LocalStore.getMealPlan();
     const currentPantry = LocalStore.getPantry();
-    const generated = generateGroceriesFromPlan(currentPlan, currentPantry);
+    const { products } = await SupabaseProductService.getProducts();
+    const generated = generateGroceriesFromPlan(currentPlan, currentPantry, products);
     LocalStore.saveGroceries(generated);
     setItems(generated);
-    toast.success("Llista de la compra recarregada des del menú setmanal!");
+    toast.success("Llista de la compra vinculada amb els productes de la base de dades!");
   };
 
   const handleAddItem = (newItem: GroceryItem) => {

@@ -9,6 +9,7 @@ import {
   BookOpen,
   ShoppingCart,
   ClipboardList,
+  ScanBarcode,
   Package,
   Settings,
   Users,
@@ -98,6 +99,7 @@ export const Navbar: React.FC<{ onOpenGenerateModal?: () => void }> = ({ onOpenG
   const navLinks = [
     { href: "/planner", label: "Planificador", icon: Calendar },
     { href: "/recipes", label: "Receptari", icon: BookOpen },
+    { href: "/products", label: "Productes", icon: ScanBarcode },
     { href: "/groceries", label: "Llista de Compra", icon: ClipboardList },
     {
       href: "/compra",

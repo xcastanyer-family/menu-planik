@@ -1,4 +1,4 @@
-import { Recipe, WeeklyMealPlan, PantryItem, UserPreferences, GroceryItem, Family, UserSession, DayOfWeek, MealType, MealSlot } from "@/types";
+import { Recipe, WeeklyMealPlan, PantryItem, UserPreferences, GroceryItem, Product, Family, UserSession, DayOfWeek, MealType, MealSlot } from "@/types";
 
 export const INITIAL_RECIPES: Recipe[] = [
   {
@@ -648,23 +648,46 @@ export const USER_SESSION: UserSession = {
   isAuthenticated: true,
 };
 
-export function generateGroceriesFromPlan(plan: WeeklyMealPlan, pantry: PantryItem[] = []): GroceryItem[] {
+export function generateGroceriesFromPlan(
+  plan: WeeklyMealPlan,
+  pantry: PantryItem[] = [],
+  products: Product[] = []
+): GroceryItem[] {
   const map: Record<string, GroceryItem> = {};
 
   plan.slots.forEach((slot) => {
     if (!slot.recipe) return;
     slot.recipe.ingredients.forEach((ing) => {
-      const key = `${ing.name.toLowerCase()}-${ing.unit.toLowerCase()}`;
+      // Look for matched product in database products table
+      const matchedProduct = products.find(
+        (p) =>
+          (ing.productId && p.id === ing.productId) ||
+          p.name.toLowerCase().trim() === ing.name.toLowerCase().trim() ||
+          ing.name.toLowerCase().trim().includes(p.name.toLowerCase().trim())
+      );
+
+      const itemName = matchedProduct ? matchedProduct.name : ing.name;
+      const itemCategory = matchedProduct ? matchedProduct.category : (ing.category || "other");
+      const itemUnit = matchedProduct ? (matchedProduct.defaultUnit || ing.unit) : ing.unit;
+
+      const key = `${itemName.toLowerCase()}-${itemUnit.toLowerCase()}`;
       const amountForHousehold = (ing.amount / (slot.recipe?.servings || 1)) * plan.householdSize;
 
       if (!map[key]) {
-        const inPantryItem = pantry.find((p) => p.name.toLowerCase().includes(ing.name.toLowerCase()) || ing.name.toLowerCase().includes(p.name.toLowerCase()));
+        const inPantryItem = pantry.find(
+          (p) =>
+            p.name.toLowerCase().includes(itemName.toLowerCase()) ||
+            itemName.toLowerCase().includes(p.name.toLowerCase())
+        );
         map[key] = {
           id: `groc-${Math.random().toString(36).substring(2, 9)}`,
-          name: ing.name,
+          productId: matchedProduct?.id || ing.productId,
+          brand: matchedProduct?.brand,
+          barcode: matchedProduct?.barcode,
+          name: itemName,
           amount: Math.round(amountForHousehold * 10) / 10,
-          unit: ing.unit,
-          category: ing.category || "other",
+          unit: itemUnit,
+          category: itemCategory,
           checked: false,
           mealPlanId: plan.id,
           recipeSource: slot.recipe?.title,

@@ -31,11 +31,30 @@ export interface NutritionalInfo {
 
 export interface Ingredient {
   id: string;
+  productId?: string;
   name: string;
   amount: number;
   unit: string;
   category?: GroceryCategory;
   notes?: string;
+}
+
+export interface Product {
+  id: string;
+  familyId?: string;
+  name: string;
+  brand?: string;
+  barcode?: string;
+  category: GroceryCategory;
+  defaultUnit: string;
+  packageSize?: number;
+  imageUrl?: string;
+  nutrition?: NutritionalInfo;
+  allergens?: string[];
+  notes?: string;
+  source?: "manual" | "barcode" | "ai";
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Recipe {
@@ -100,6 +119,9 @@ export type GroceryCategory =
 
 export interface GroceryItem {
   id: string;
+  productId?: string;
+  brand?: string;
+  barcode?: string;
   name: string;
   amount: number;
   unit: string;

@@ -143,6 +143,28 @@ create table if not exists public.pantry_items (
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
+-- 9. Catàleg Centralitzat de Productes
+create table if not exists public.products (
+  id uuid primary key default uuid_generate_v4(),
+  family_id uuid references public.families(id) on delete set null,
+  name text not null,
+  brand text,
+  barcode text,
+  category text not null default 'other',
+  default_unit text not null default 'u.',
+  package_size numeric(10,2),
+  image_url text,
+  nutrition jsonb default '{"calories": 0, "protein": 0, "carbs": 0, "fat": 0}'::jsonb,
+  allergens text[] default array[]::text[],
+  notes text,
+  source text default 'manual', -- 'manual', 'barcode', 'ai'
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  updated_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+create index if not exists idx_products_barcode on public.products(barcode);
+create index if not exists idx_products_name on public.products(name);
+
 -- =========================================================================
 -- FUNCIONS AUXILIARS I TRIGGERS PER A REGISTRE AUTOMÀTIC
 -- =========================================================================

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { Input, Textarea, Select } from "@/components/ui/Input";
 import { Recipe, Ingredient, DietaryPreference, MealType } from "@/types";
 import { LocalStore } from "@/lib/storage/local-store";
+import { getRecipeFoodInfo, getRecipeComplexity } from "@/lib/utils";
 import {
   Sparkles,
   Plus,
@@ -36,6 +37,7 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
   // AI Specifications State
   const [dishName, setDishName] = useState("");
   const [mealType, setMealType] = useState<MealType>("lunch");
+  const [complexity, setComplexity] = useState<"simple" | "complex">("simple");
   const [servings, setServings] = useState(2);
   const [maxTimeMinutes, setMaxTimeMinutes] = useState(30);
   const [dietaryTag, setDietaryTag] = useState<DietaryPreference>("mediterranean");
@@ -100,6 +102,7 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
         body: JSON.stringify({
           dishName: dishName.trim(),
           mealType,
+          complexity,
           dietaryPreference: dietaryTag,
           servings: Number(servings) || 2,
           maxTimeMinutes: Number(maxTimeMinutes) || undefined,
@@ -112,10 +115,10 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
 
       const data = await res.json();
       if (data.success && data.recipe) {
-        setGeneratedRecipe(data.recipe);
+        setGeneratedRecipe({ ...data.recipe, complexity: data.recipe.complexity || complexity });
         toast.success(`Recepta "${data.recipe.title}" generada! Revisa-la abans de desar.`);
       } else {
-        toast.error(data.error || "No s\x27ha pogut generar la recepta.");
+        toast.error(data.error || "No s'ha pogut generar la recepta.");
       }
     } catch {
       toast.error("Error de connexió en generar la recepta.");
@@ -130,6 +133,7 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
     try {
       const recipeToCreate: Recipe = {
         ...generatedRecipe,
+        complexity: generatedRecipe.complexity || complexity,
         moderationStatus: publishPublicly ? "approved_public" : "private",
         isPublic: publishPublicly,
       };
@@ -197,6 +201,7 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
       },
       tags: ["Personalitzada"],
       dietaryTags: [dietaryTag],
+      complexity,
       source: "custom",
       moderationStatus: publishPublicly ? "approved_public" : "private",
       isPublic: publishPublicly,
@@ -243,52 +248,77 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
         {generatedRecipe ? (
           <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
             {/* Header info */}
-            <div className="bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 rounded-2xl p-4 space-y-2">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <span className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/50 px-2 py-0.5 rounded-md mb-1.5">
-                    <Sparkles className="w-3 h-3" /> Generada per la IA
-                  </span>
-                  <div className="mt-1">
-                    <label className="text-[10px] uppercase font-bold text-emerald-800 dark:text-emerald-300 block mb-1">
-                      Títol creat per la IA (pots retocar-lo si vols):
-                    </label>
-                    <input
-                      type="text"
-                      value={generatedRecipe.title}
-                      onChange={(e) =>
-                        setGeneratedRecipe({ ...generatedRecipe, title: e.target.value })
-                      }
-                      className="w-full text-base sm:text-lg font-bold text-zinc-900 dark:text-white bg-white dark:bg-zinc-900 px-3 py-1.5 rounded-xl border border-emerald-300 dark:border-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 shadow-xs"
-                    />
+            {(() => {
+              const foodInfo = getRecipeFoodInfo(generatedRecipe);
+              const comp = generatedRecipe.complexity || complexity;
+              return (
+                <div className="bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 rounded-2xl p-4 space-y-3">
+                  <div className="flex items-start gap-3.5">
+                    <div className={`w-14 h-14 rounded-2xl ${foodInfo.bgLight} ${foodInfo.bgDark} flex items-center justify-center text-3xl shrink-0 border border-emerald-300/40`}>
+                      {foodInfo.icon}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/50 px-2 py-0.5 rounded-md">
+                          <Sparkles className="w-3 h-3" /> Generada per la IA
+                        </span>
+                        <span className={`px-2 py-0.5 text-[10px] font-bold rounded-md ${foodInfo.badgeClass}`}>
+                          {foodInfo.label}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setGeneratedRecipe({ ...generatedRecipe, complexity: comp === "simple" ? "complex" : "simple" })}
+                          className={`px-2 py-0.5 text-[10px] font-bold rounded-md border transition ${
+                            comp === "complex"
+                              ? "bg-purple-100 text-purple-800 dark:bg-purple-950/80 dark:text-purple-300 border-purple-300/60"
+                              : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border-emerald-300/60"
+                          }`}
+                        >
+                          {comp === "complex" ? "🟣 Complexa (clica per canviar)" : "🟢 Senzilla (clica per canviar)"}
+                        </button>
+                      </div>
+                      <div>
+                        <label className="text-[10px] uppercase font-bold text-emerald-800 dark:text-emerald-300 block mb-1">
+                          Títol creat per la IA (pots retocar-lo si vols):
+                        </label>
+                        <input
+                          type="text"
+                          value={generatedRecipe.title}
+                          onChange={(e) =>
+                            setGeneratedRecipe({ ...generatedRecipe, title: e.target.value })
+                          }
+                          className="w-full text-base sm:text-lg font-bold text-zinc-900 dark:text-white bg-white dark:bg-zinc-900 px-3 py-1.5 rounded-xl border border-emerald-300 dark:border-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 shadow-xs"
+                        />
+                      </div>
+                      {generatedRecipe.description && (
+                        <p className="text-xs text-zinc-600 dark:text-zinc-300 mt-1 leading-relaxed">
+                          {generatedRecipe.description}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                  {generatedRecipe.description && (
-                    <p className="text-xs text-zinc-600 dark:text-zinc-300 mt-1 leading-relaxed">
-                      {generatedRecipe.description}
-                    </p>
-                  )}
-                </div>
-              </div>
 
-              {/* Quick stats pills */}
-              <div className="flex items-center gap-3 text-xs text-zinc-600 dark:text-zinc-300 pt-2 flex-wrap border-t border-emerald-200/50 dark:border-emerald-800/30">
-                <span className="flex items-center gap-1 font-medium">
-                  <Clock className="w-3.5 h-3.5 text-zinc-400" />
-                  {generatedRecipe.prepTimeMinutes + generatedRecipe.cookTimeMinutes} minuts
-                </span>
-                <span className="flex items-center gap-1 font-medium">
-                  <Users className="w-3.5 h-3.5 text-zinc-400" />
-                  {generatedRecipe.servings} racions
-                </span>
-                <span className="flex items-center gap-1 font-medium text-amber-600 dark:text-amber-400">
-                  <Flame className="w-3.5 h-3.5" />
-                  {generatedRecipe.calories} kcal
-                </span>
-                <span className="text-[11px] bg-white dark:bg-zinc-800 px-2 py-0.5 rounded-md border border-zinc-200 dark:border-zinc-700">
-                  {dietaryTag}
-                </span>
-              </div>
-            </div>
+                  {/* Quick stats pills */}
+                  <div className="flex items-center gap-3 text-xs text-zinc-600 dark:text-zinc-300 pt-2 flex-wrap border-t border-emerald-200/50 dark:border-emerald-800/30">
+                    <span className="flex items-center gap-1 font-medium">
+                      <Clock className="w-3.5 h-3.5 text-zinc-400" />
+                      {generatedRecipe.prepTimeMinutes + generatedRecipe.cookTimeMinutes} minuts
+                    </span>
+                    <span className="flex items-center gap-1 font-medium">
+                      <Users className="w-3.5 h-3.5 text-zinc-400" />
+                      {generatedRecipe.servings} racions
+                    </span>
+                    <span className="flex items-center gap-1 font-medium text-amber-600 dark:text-amber-400">
+                      <Flame className="w-3.5 h-3.5" />
+                      {generatedRecipe.calories} kcal
+                    </span>
+                    <span className="text-[11px] bg-white dark:bg-zinc-800 px-2 py-0.5 rounded-md border border-zinc-200 dark:border-zinc-700">
+                      {dietaryTag}
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Ingredients */}
             <div className="bg-zinc-50 dark:bg-zinc-850 rounded-xl p-3.5 border border-zinc-200/80 dark:border-zinc-800 space-y-2">
@@ -410,6 +440,36 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
               rows={2}
             />
 
+            <div>
+              <label className="text-xs sm:text-sm font-medium text-zinc-700 dark:text-zinc-300 block mb-1.5">
+                Complexitat de la recepta
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setComplexity("simple")}
+                  className={`py-2 px-3 rounded-xl text-xs font-semibold border flex items-center justify-center gap-1.5 transition ${
+                    complexity === "simple"
+                      ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 text-emerald-800 dark:text-emerald-300 shadow-xs"
+                      : "bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100"
+                  }`}
+                >
+                  🟢 Senzilla (dia a dia, ràpida)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setComplexity("complex")}
+                  className={`py-2 px-3 rounded-xl text-xs font-semibold border flex items-center justify-center gap-1.5 transition ${
+                    complexity === "complex"
+                      ? "bg-purple-50 dark:bg-purple-950/40 border-purple-500 text-purple-800 dark:text-purple-300 shadow-xs"
+                      : "bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100"
+                  }`}
+                >
+                  🟣 Complexa (elaborada)
+                </button>
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <Input
                 label="Prep (min)"
@@ -515,6 +575,43 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
               <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1">
                 💡 Posa aquí la teva idea, desig o combinació que et vingui de gust; la IA trobarà la recepta adequada i en crearà el títol professional.
               </p>
+            </div>
+
+            {/* Complexity Selector */}
+            <div>
+              <label className="text-xs sm:text-sm font-medium text-zinc-700 dark:text-zinc-300 block mb-1.5">
+                Tipus de recepta / Complexitat
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setComplexity("simple");
+                    setMaxTimeMinutes(25);
+                  }}
+                  className={`py-2 px-3 rounded-xl text-xs font-semibold border flex items-center justify-center gap-1.5 transition ${
+                    complexity === "simple"
+                      ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 text-emerald-800 dark:text-emerald-300 shadow-xs"
+                      : "bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100"
+                  }`}
+                >
+                  🟢 Senzilla (dia a dia, ràpida)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setComplexity("complex");
+                    setMaxTimeMinutes(50);
+                  }}
+                  className={`py-2 px-3 rounded-xl text-xs font-semibold border flex items-center justify-center gap-1.5 transition ${
+                    complexity === "complex"
+                      ? "bg-purple-50 dark:bg-purple-950/40 border-purple-500 text-purple-800 dark:text-purple-300 shadow-xs"
+                      : "bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100"
+                  }`}
+                >
+                  🟣 Complexa (elaborada)
+                </button>
+              </div>
             </div>
 
             {/* Specifications Grid */}

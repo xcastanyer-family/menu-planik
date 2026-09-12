@@ -2,10 +2,9 @@
 
 import React from "react";
 import { MealSlot, Recipe } from "@/types";
-import { formatMealTypeName } from "@/lib/utils";
+import { formatMealTypeName, triggerConfetti } from "@/lib/utils";
 import { Clock, Flame, Sparkles, RefreshCw, CheckCircle2, Utensils } from "lucide-react";
 import { toast } from "sonner";
-import confetti from "canvas-confetti";
 
 interface MealSlotCardProps {
   slot: MealSlot;
@@ -31,7 +30,7 @@ export const MealSlotCard: React.FC<MealSlotCardProps> = ({
     e.stopPropagation();
     onToggleCompleted(slot.id);
     if (!isDone) {
-      confetti({
+      triggerConfetti({
         particleCount: 35,
         spread: 60,
         origin: { y: 0.8 },

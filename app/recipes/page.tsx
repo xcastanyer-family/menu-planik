@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { Recipe } from "@/types";
 import { LocalStore } from "@/lib/storage/local-store";
+import { getRecipeComplexity } from "@/lib/utils";
 import { SupabaseRecipeService } from "@/lib/supabase/recipes";
 import { RecipeCard } from "@/components/recipes/RecipeCard";
 import { RecipeDetailModal } from "@/components/recipes/RecipeDetailModal";
@@ -57,6 +58,8 @@ export default function RecipesPage() {
 
   const filterTags = [
     { id: "all", label: "Totes les Receptes" },
+    { id: "simple", label: "🟢 Senzilles" },
+    { id: "complex", label: "🟣 Complexes" },
     { id: "Primers", label: "🍝 Primers" },
     { id: "Segons", label: "🥩 Segons" },
     { id: "Esmorzar", label: "🥐 Esmorzar" },
@@ -73,7 +76,11 @@ export default function RecipesPage() {
       recipe.ingredients.some((ing) => ing.name.toLowerCase().includes(search.toLowerCase()));
 
     let matchesFilter = true;
-    if (activeFilter === "ai") {
+    if (activeFilter === "simple") {
+      matchesFilter = getRecipeComplexity(recipe) === "simple";
+    } else if (activeFilter === "complex") {
+      matchesFilter = getRecipeComplexity(recipe) === "complex";
+    } else if (activeFilter === "ai") {
       matchesFilter = recipe.source === "ai";
     } else if (activeFilter === "Ràpid") {
       matchesFilter = recipe.prepTimeMinutes + recipe.cookTimeMinutes <= 20;

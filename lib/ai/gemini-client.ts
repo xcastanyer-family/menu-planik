@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { Recipe, WeeklyMealPlan, MealSlot, DayOfWeek, MealType, DietaryPreference } from "@/types";
 import { INITIAL_RECIPES } from "@/lib/storage/mock-data";
+import { getRecipeComplexity } from "@/lib/utils";
 import { generateSmartRecipeFromPrompt, generateSmartPantryRecipes } from "./smart-recipe-generator";
 
 function getApiKey(customKey?: string): string | null {
@@ -62,10 +63,11 @@ Preferències de l'usuari:
 ${userRecipesSummary}
 
 INSTRUCCIONS DE MÀXIMA OBLIGACIÓ:
-1. Si l'usuari a les NOTES demana un plat concret o freqüència (per exemple: "todos los dias macarrones", "tots els dies macarrons", "dilluns i dimecres salmó", etc.):
+1. COMPLEXITAT DEL MENÚ: TOTS ELS ÀPATS PLANIFICATS EN AQUEST MENÚ SETMANAL HAN DE SER RECEPTES SENZILLES (ràpides, del dia a dia, preparació fàcil, temps total màxim aprox. 30 minuts). No incloguis receptes gaire complexes o lentes en el menú automàtic, ja que l'usuari podrà bescanviar qualsevol àpat individualment per receptes complexes quan vulgui.
+2. Si l'usuari a les NOTES demana un plat concret o freqüència (per exemple: "todos los dias macarrones", "tots els dies macarrons", "dilluns i dimecres salmó", etc.):
    HAS D'INCLOURE AQUEST PLAT EXACTAMENT EN TOTS ELS DIES/ÀPATS INDICATS.
-2. Si un plat demanat coincideix amb una recepta existent del receptari de l'usuari (ex: macarrons), UTILITZA EXACTAMENT aquest títol.
-3. No ignoris mai el que l'usuari ha demanat a les notes.
+3. Si un plat demanat coincideix amb una recepta existent del receptari de l'usuari (ex: macarrons), UTILITZA EXACTAMENT aquest títol.
+4. No ignoris mai el que l'usuari ha demanat a les notes.
 
 Respon EXCLUSIVAMENT amb un JSON vàlid estructurat de la següent manera, sense markdown ni text addicional:
 {
@@ -151,6 +153,7 @@ Cada ingredient ha de tenir una "category" escollida entre: "produce", "dairy", 
           id: recipeId,
           title: meal.title,
           description: meal.description || `Deliciosa opció per a ${mType}`,
+          complexity: "simple",
           prepTimeMinutes: meal.prepTimeMinutes || 10,
           cookTimeMinutes: meal.cookTimeMinutes || 15,
           servings: params.householdSize,
@@ -207,6 +210,7 @@ export async function suggestMealAlternativeWithAI(params: {
   dietaryPreference?: DietaryPreference;
   notes?: string;
   dishName?: string;
+  complexity?: "simple" | "complex";
   servings?: number;
   maxTimeMinutes?: number;
   includeIngredients?: string[];
@@ -239,6 +243,7 @@ Context de l'àpat:
 - Tipus d'àpat: "${mealTypeStr}"
 - Racions: ${servingsCount} persones
 - Preferència alimentària: "${params.dietaryPreference || "mediterranean"}"
+${params.complexity ? `- Complexitat demanada: ${params.complexity === "complex" ? "Complexa / Elaborada (recepta rica, de cap de setmana o ocasions especials)" : "Senzilla / Ràpida (fàcil, del dia a dia, temps màxim 30 minuts)"}` : ""}
 ${params.maxTimeMinutes ? `- Temps màxim disponible: aprox ${params.maxTimeMinutes} minuts` : ""}
 ${params.includeIngredients && params.includeIngredients.length > 0 ? `- Ingredients que CAL incloure obligatòriament: ${params.includeIngredients.join(", ")}` : ""}
 ${params.excludeIngredients && params.excludeIngredients.length > 0 ? `- Ingredients o al·lèrgens a EVITAR estrictament: ${params.excludeIngredients.join(", ")}` : ""}
@@ -293,6 +298,7 @@ Categories vàlides per als ingredients: "produce", "dairy", "meat", "bakery", "
       id: `rec-ai-${Date.now()}`,
       title: finalTitle,
       description: parsed.description || "Recepta personalitzada generada per la IA",
+      complexity: params.complexity || (parsed.prepTimeMinutes + parsed.cookTimeMinutes > 35 ? "complex" : "simple"),
       prepTimeMinutes: parsed.prepTimeMinutes || 10,
       cookTimeMinutes: parsed.cookTimeMinutes || 15,
       servings: parsed.servings || servingsCount,
@@ -499,7 +505,7 @@ function generateFallbackPlan(params: {
     }
   }
 
-  // Filter remaining recipes
+  // Filter remaining recipes prioritizing simple recipes for the weekly plan
   const breakfasts = uniqueCatalog.filter(
     (r) => r.tags.some((t) => t.toLowerCase().includes("esmorzar") || t.toLowerCase().includes("brunch") || t.toLowerCase().includes("dolç"))
   );
@@ -508,7 +514,9 @@ function generateFallbackPlan(params: {
   const mains = uniqueCatalog.filter(
     (r) => !r.tags.some((t) => t.toLowerCase().includes("esmorzar") || t.toLowerCase().includes("brunch"))
   );
-  const fallbackMains = mains.length > 0 ? mains : INITIAL_RECIPES;
+  // Ensure weekly plan uses simple everyday recipes
+  const simpleMains = mains.filter((r) => getRecipeComplexity(r) === "simple");
+  const fallbackMains = simpleMains.length > 0 ? simpleMains : (mains.length > 0 ? mains : INITIAL_RECIPES);
 
   days.forEach((day, index) => {
     // Breakfast

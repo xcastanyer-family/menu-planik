@@ -7,7 +7,7 @@ import { Input, Textarea } from "@/components/ui/Input";
 import { Recipe, Ingredient } from "@/types";
 import { Clock, Flame, Users, Check, Play, Globe, Pencil, Trash2, Plus, ArrowLeft, Lock } from "lucide-react";
 import { LocalStore } from "@/lib/storage/local-store";
-import { cn } from "@/lib/utils";
+import { cn, getRecipeFoodInfo, getRecipeComplexity } from "@/lib/utils";
 import { toast } from "sonner";
 
 interface RecipeDetailModalProps {
@@ -37,6 +37,7 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
 
   const [editTitle, setEditTitle] = useState("");
   const [editDescription, setEditDescription] = useState("");
+  const [editComplexity, setEditComplexity] = useState<"simple" | "complex">("simple");
   const [editPrepTime, setEditPrepTime] = useState(10);
   const [editCookTime, setEditCookTime] = useState(15);
   const [editServings, setEditServings] = useState(2);
@@ -50,6 +51,7 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
       setServings(recipe.servings || 2);
       setEditTitle(recipe.title || "");
       setEditDescription(recipe.description || "");
+      setEditComplexity(recipe.complexity || getRecipeComplexity(recipe));
       setEditPrepTime(recipe.prepTimeMinutes || 10);
       setEditCookTime(recipe.cookTimeMinutes || 15);
       setEditServings(recipe.servings || 2);
@@ -149,6 +151,7 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
       ...recipe,
       title: editTitle.trim(),
       description: editDescription.trim(),
+      complexity: editComplexity,
       prepTimeMinutes: Number(editPrepTime) || 10,
       cookTimeMinutes: Number(editCookTime) || 15,
       servings: Number(editServings) || 2,
@@ -230,6 +233,38 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
             onChange={(e) => setEditDescription(e.target.value)}
             rows={2}
           />
+
+          <div>
+            <label className="text-xs sm:text-sm font-medium text-zinc-700 dark:text-zinc-300 block mb-1.5">
+              Complexitat de la Recepta
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setEditComplexity("simple")}
+                className={cn(
+                  "py-2 px-3 rounded-xl text-xs font-semibold border flex items-center justify-center gap-1.5 transition",
+                  editComplexity === "simple"
+                    ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 text-emerald-800 dark:text-emerald-300 shadow-xs"
+                    : "bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100"
+                )}
+              >
+                🟢 Senzilla (dia a dia, ràpida)
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditComplexity("complex")}
+                className={cn(
+                  "py-2 px-3 rounded-xl text-xs font-semibold border flex items-center justify-center gap-1.5 transition",
+                  editComplexity === "complex"
+                    ? "bg-purple-50 dark:bg-purple-950/40 border-purple-500 text-purple-800 dark:text-purple-300 shadow-xs"
+                    : "bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100"
+                )}
+              >
+                🟣 Complexa (elaborada)
+              </button>
+            </div>
+          </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <Input
@@ -325,25 +360,40 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
         <div className="space-y-6">
           {/* Recipe Banner & Title */}
           <div className="space-y-3">
-            {recipe.imageUrl && (
-              <div className="relative h-48 sm:h-64 w-full rounded-xl overflow-hidden bg-zinc-100 dark:bg-zinc-800">
-                <img
-                  src={recipe.imageUrl}
-                  alt={recipe.title}
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-                <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between text-white">
-                  <span className="text-xs font-semibold px-2.5 py-1 bg-black/50 backdrop-blur-md rounded-lg">
-                    {recipe.source === "ai" ? "✨ Creat amb IA" : "Selecció del Xef"}
-                  </span>
-                  <span className="text-xs font-medium px-2.5 py-1 bg-black/50 backdrop-blur-md rounded-lg flex items-center gap-1">
-                    <Flame className="w-3.5 h-3.5 text-amber-400" />
-                    {Math.round(recipe.calories * ratio)} kcal / ració
-                  </span>
+            {(() => {
+              const foodInfo = getRecipeFoodInfo(recipe);
+              const complexity = getRecipeComplexity(recipe);
+              return (
+                <div className={`relative h-44 sm:h-52 w-full rounded-2xl overflow-hidden ${foodInfo.bgLight} ${foodInfo.bgDark} flex flex-col items-center justify-center border border-zinc-200/60 dark:border-zinc-800`}>
+                  <div className="text-6xl sm:text-7xl select-none transform hover:scale-110 transition-transform duration-200">
+                    {foodInfo.icon}
+                  </div>
+                  <div className="absolute top-3 left-3 flex items-center gap-2">
+                    <span className={`px-2.5 py-1 text-xs font-bold rounded-lg shadow-xs ${foodInfo.badgeClass}`}>
+                      {foodInfo.label}
+                    </span>
+                    {complexity === "complex" ? (
+                      <span className="px-2.5 py-1 text-xs font-bold bg-purple-100 text-purple-800 dark:bg-purple-950/80 dark:text-purple-300 rounded-lg border border-purple-300/50 shadow-xs">
+                        🟣 Complexa
+                      </span>
+                    ) : (
+                      <span className="px-2.5 py-1 text-xs font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 rounded-lg border border-emerald-300/50 shadow-xs">
+                        🟢 Senzilla
+                      </span>
+                    )}
+                  </div>
+                  <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
+                    <span className="text-xs font-semibold px-2.5 py-1 bg-white/80 dark:bg-black/60 backdrop-blur-md rounded-lg text-zinc-700 dark:text-zinc-200 shadow-xs">
+                      {recipe.source === "ai" ? "✨ Creat amb IA" : "Selecció del Xef"}
+                    </span>
+                    <span className="text-xs font-bold px-2.5 py-1 bg-white/80 dark:bg-black/60 backdrop-blur-md rounded-lg flex items-center gap-1 text-amber-700 dark:text-amber-400 shadow-xs">
+                      <Flame className="w-3.5 h-3.5" />
+                      {Math.round(recipe.calories * ratio)} kcal / ració
+                    </span>
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             <div>
               <div className="flex items-center gap-2 flex-wrap mb-1">

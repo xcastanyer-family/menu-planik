@@ -2,7 +2,8 @@
 
 import React from "react";
 import { Recipe } from "@/types";
-import { Clock, Flame, Users, Sparkles, ChefHat } from "lucide-react";
+import { Clock, Flame, Users, Sparkles } from "lucide-react";
+import { getRecipeFoodInfo, getRecipeComplexity } from "@/lib/utils";
 
 interface RecipeCardProps {
   recipe: Recipe;
@@ -11,27 +12,31 @@ interface RecipeCardProps {
 }
 
 export const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick }) => {
+  const foodInfo = getRecipeFoodInfo(recipe);
+  const complexity = getRecipeComplexity(recipe);
   return (
     <div
       onClick={onClick}
       className="group relative bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 shadow-sm hover:shadow-md hover:border-primary-400 dark:hover:border-primary-600 transition-all duration-200 overflow-hidden cursor-pointer flex flex-col justify-between"
     >
       <div>
-        {/* Image Thumbnail */}
-        <div className="relative h-44 w-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
-          {recipe.imageUrl ? (
-            <img
-              src={recipe.imageUrl}
-              alt={recipe.title}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center bg-gradient-to-tr from-emerald-500/10 to-primary-500/10 text-primary-600">
-              <ChefHat className="w-10 h-10 opacity-40" />
-            </div>
-          )}
+        {/* Food Icon Banner */}
+        <div className={`relative h-36 w-full ${foodInfo.bgLight} ${foodInfo.bgDark} flex items-center justify-center overflow-hidden transition-colors border-b border-zinc-100 dark:border-zinc-800/60`}>
+          <div className="text-5xl select-none group-hover:scale-110 transition-transform duration-200">
+            {foodInfo.icon}
+          </div>
 
           <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5 flex-wrap justify-end">
+            {complexity === "complex" ? (
+              <span className="px-2 py-0.5 text-[10px] font-bold bg-purple-100 text-purple-800 dark:bg-purple-950/80 dark:text-purple-300 rounded-full border border-purple-300/50 shadow-xs flex items-center gap-1">
+                🟣 Complexa
+              </span>
+            ) : (
+              <span className="px-2 py-0.5 text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 rounded-full border border-emerald-300/50 shadow-xs flex items-center gap-1">
+                🟢 Senzilla
+              </span>
+            )}
+
             {(recipe.moderationStatus === "approved_public" || recipe.isPublic) ? (
               <span className="px-2 py-0.5 text-[10px] font-bold bg-emerald-600/90 backdrop-blur-md text-white rounded-full flex items-center gap-1 shadow-sm">
                 🌐 Públic
@@ -49,6 +54,9 @@ export const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick }) => {
           </div>
 
           <div className="absolute bottom-2.5 left-2.5 flex items-center gap-1.5">
+            <span className={`px-2 py-0.5 text-[10px] font-semibold rounded-md shadow-xs ${foodInfo.badgeClass}`}>
+              {foodInfo.label}
+            </span>
             <span className="px-2 py-0.5 text-[11px] font-semibold bg-black/60 backdrop-blur-md text-white rounded-lg flex items-center gap-1">
               <Flame className="w-3 h-3 text-amber-400" />
               {recipe.calories} kcal

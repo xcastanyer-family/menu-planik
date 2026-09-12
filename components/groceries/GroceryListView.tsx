@@ -2,10 +2,9 @@
 
 import React from "react";
 import { GroceryItem, GroceryCategory } from "@/types";
-import { formatAisleCategory } from "@/lib/utils";
+import { formatAisleCategory, triggerConfetti } from "@/lib/utils";
 import { Check, Trash2, Plus, Share2, RefreshCw, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import confetti from "canvas-confetti";
 import { toast } from "sonner";
 
 interface GroceryListViewProps {
@@ -45,7 +44,7 @@ export const GroceryListView: React.FC<GroceryListViewProps> = ({
   const handleToggle = (item: GroceryItem) => {
     onToggleItem(item.id);
     if (!item.checked && checkedCount + 1 === totalCount && totalCount > 0) {
-      confetti({
+      triggerConfetti({
         particleCount: 70,
         spread: 70,
         origin: { y: 0.7 },

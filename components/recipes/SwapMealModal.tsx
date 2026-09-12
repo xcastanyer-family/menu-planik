@@ -5,7 +5,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Recipe, MealSlot } from "@/types";
 import { Search, Sparkles, Clock, Flame } from "lucide-react";
-import { formatDayName, formatMealTypeName } from "@/lib/utils";
+import { formatDayName, formatMealTypeName, getRecipeFoodInfo, getRecipeComplexity } from "@/lib/utils";
 import { LocalStore } from "@/lib/storage/local-store";
 import { toast } from "sonner";
 
@@ -25,15 +25,23 @@ export const SwapMealModal: React.FC<SwapMealModalProps> = ({
   onSelectRecipe,
 }) => {
   const [search, setSearch] = useState("");
+  const [complexityFilter, setComplexityFilter] = useState<"all" | "simple" | "complex">("all");
   const [isSuggestingAI, setIsSuggestingAI] = useState(false);
 
   if (!slot) return null;
 
-  const filtered = recipes.filter(
-    (r) =>
+  const simpleCount = recipes.filter((r) => getRecipeComplexity(r) === "simple").length;
+  const complexCount = recipes.filter((r) => getRecipeComplexity(r) === "complex").length;
+
+  const filtered = recipes.filter((r) => {
+    const matchesSearch =
       r.title.toLowerCase().includes(search.toLowerCase()) ||
-      r.tags.some((t) => t.toLowerCase().includes(search.toLowerCase()))
-  );
+      r.tags.some((t) => t.toLowerCase().includes(search.toLowerCase()));
+    if (!matchesSearch) return false;
+    if (complexityFilter === "simple") return getRecipeComplexity(r) === "simple";
+    if (complexityFilter === "complex") return getRecipeComplexity(r) === "complex";
+    return true;
+  });
 
   const handleAiSuggest = async () => {
     setIsSuggestingAI(true);
@@ -69,10 +77,10 @@ export const SwapMealModal: React.FC<SwapMealModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       title={`Canvia àpat: ${formatMealTypeName(slot.mealType)} (${formatDayName(slot.day)})`}
-      description="Tria una recepta del catàleg o demana una alternativa a la intel·ligència artificial."
+      description="Tria qualsevol recepta existent (senzilles o complexes) o demana una alternativa amb IA."
       maxWidth="xl"
     >
-      <div className="space-y-4 pt-1">
+      <div className="space-y-3.5 pt-1">
         {/* Top Search & AI button */}
         <div className="flex flex-col sm:flex-row gap-2">
           <div className="relative flex-1">
@@ -98,47 +106,100 @@ export const SwapMealModal: React.FC<SwapMealModalProps> = ({
           </Button>
         </div>
 
+        {/* Complexity Selector Filter Tabs */}
+        <div className="flex items-center gap-1.5 p-1 bg-zinc-100 dark:bg-zinc-800/70 rounded-xl">
+          <button
+            type="button"
+            onClick={() => setComplexityFilter("all")}
+            className={`flex-1 py-1.5 px-2 text-xs font-semibold rounded-lg transition ${
+              complexityFilter === "all"
+                ? "bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-xs"
+                : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-900"
+            }`}
+          >
+            Totes ({recipes.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setComplexityFilter("simple")}
+            className={`flex-1 py-1.5 px-2 text-xs font-semibold rounded-lg transition flex items-center justify-center gap-1 ${
+              complexityFilter === "simple"
+                ? "bg-white dark:bg-zinc-700 text-emerald-700 dark:text-emerald-300 shadow-xs"
+                : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-900"
+            }`}
+          >
+            🟢 Senzilles ({simpleCount})
+          </button>
+          <button
+            type="button"
+            onClick={() => setComplexityFilter("complex")}
+            className={`flex-1 py-1.5 px-2 text-xs font-semibold rounded-lg transition flex items-center justify-center gap-1 ${
+              complexityFilter === "complex"
+                ? "bg-white dark:bg-zinc-700 text-purple-700 dark:text-purple-300 shadow-xs"
+                : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-900"
+            }`}
+          >
+            🟣 Complexes ({complexCount})
+          </button>
+        </div>
+
         {/* Recipes List */}
         <div className="max-h-80 overflow-y-auto space-y-2 pr-1">
           {filtered.length === 0 ? (
-            <p className="text-center text-sm text-zinc-400 py-8">Cap recepta trobada amb aquest nom.</p>
+            <p className="text-center text-sm text-zinc-400 py-8">Cap recepta trobada.</p>
           ) : (
-            filtered.map((r) => (
-              <div
-                key={r.id}
-                onClick={() => {
-                  onSelectRecipe(slot.id, r);
-                  toast.success(`Assignat: ${r.title}`);
-                  onClose();
-                }}
-                className="flex items-center justify-between p-3 rounded-xl border border-zinc-100 dark:border-zinc-800/80 bg-zinc-50/50 dark:bg-zinc-800/30 hover:bg-white dark:hover:bg-zinc-800 hover:border-primary-400 cursor-pointer transition shadow-sm"
-              >
-                <div className="flex items-center gap-3">
-                  {r.imageUrl ? (
-                    <img src={r.imageUrl} alt={r.title} className="w-12 h-12 rounded-lg object-cover" />
-                  ) : (
-                    <div className="w-12 h-12 rounded-lg bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-lg">
-                      🍲
+            filtered.map((r) => {
+              const foodInfo = getRecipeFoodInfo(r);
+              const complexity = getRecipeComplexity(r);
+              return (
+                <div
+                  key={r.id}
+                  onClick={() => {
+                    onSelectRecipe(slot.id, r);
+                    toast.success(`Assignat: ${r.title}`);
+                    onClose();
+                  }}
+                  className="flex items-center justify-between p-3 rounded-xl border border-zinc-100 dark:border-zinc-800/80 bg-zinc-50/50 dark:bg-zinc-800/30 hover:bg-white dark:hover:bg-zinc-800 hover:border-primary-400 cursor-pointer transition shadow-sm"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-12 h-12 rounded-xl ${foodInfo.bgLight} ${foodInfo.bgDark} flex items-center justify-center text-2xl shrink-0 border border-zinc-200/50 dark:border-zinc-700/50`}>
+                      {foodInfo.icon}
                     </div>
-                  )}
-                  <div>
-                    <h4 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 line-clamp-1">{r.title}</h4>
-                    <div className="flex items-center gap-3 text-xs text-zinc-400 mt-0.5">
-                      <span className="flex items-center gap-1 font-medium text-amber-600 dark:text-amber-400">
-                        <Flame className="w-3 h-3" /> {r.calories} kcal
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3" /> {r.prepTimeMinutes + r.cookTimeMinutes}m
-                      </span>
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <span className={`px-1.5 py-0.2 text-[10px] font-semibold rounded ${foodInfo.badgeClass}`}>
+                          {foodInfo.label}
+                        </span>
+                        {complexity === "complex" ? (
+                          <span className="px-1.5 py-0.2 text-[10px] font-bold bg-purple-100 text-purple-800 dark:bg-purple-950/80 dark:text-purple-300 rounded border border-purple-300/40">
+                            🟣 Complexa
+                          </span>
+                        ) : (
+                          <span className="px-1.5 py-0.2 text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 rounded border border-emerald-300/40">
+                            🟢 Senzilla
+                          </span>
+                        )}
+                      </div>
+                      <h4 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 line-clamp-1">
+                        {r.title}
+                      </h4>
+                      <div className="flex items-center gap-3 text-xs text-zinc-400 mt-0.5">
+                        <span className="flex items-center gap-1 font-medium text-amber-600 dark:text-amber-400">
+                          <Flame className="w-3 h-3" /> {r.calories} kcal
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" /> {r.prepTimeMinutes + r.cookTimeMinutes}m
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <Button variant="ghost" size="sm" className="text-primary-600 hover:text-primary-700">
-                  Tria
-                </Button>
-              </div>
-            ))
+                  <Button variant="ghost" size="sm" className="text-primary-600 hover:text-primary-700 shrink-0">
+                    Sustitueix
+                  </Button>
+                </div>
+              );
+            })
           )}
         </div>
       </div>

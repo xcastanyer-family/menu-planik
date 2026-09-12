@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { Family, Recipe, UserSession } from "@/types";
 import { LocalStore } from "@/lib/storage/local-store";
+import { getRecipeFoodInfo, getRecipeComplexity } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { RecipeDetailModal } from "@/components/recipes/RecipeDetailModal";
@@ -510,13 +511,14 @@ export default function AdminDashboardPage() {
                 >
                   <div className="space-y-3">
                     <div className="flex items-start gap-3">
-                      {recipe.imageUrl && (
-                        <img
-                          src={recipe.imageUrl}
-                          alt={recipe.title}
-                          className="w-20 h-20 rounded-xl object-cover shrink-0 border border-zinc-200 dark:border-zinc-800"
-                        />
-                      )}
+                      {(() => {
+                        const foodInfo = getRecipeFoodInfo(recipe);
+                        return (
+                          <div className={`w-16 h-16 rounded-xl ${foodInfo.bgLight} ${foodInfo.bgDark} flex items-center justify-center text-3xl shrink-0 border border-zinc-200 dark:border-zinc-800`}>
+                            {foodInfo.icon}
+                          </div>
+                        );
+                      })()}
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
                           <Badge variant="info" size="sm">
@@ -758,9 +760,14 @@ export default function AdminDashboardPage() {
                     <tr key={recipe.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/40 transition">
                       <td className="p-3.5 font-bold text-zinc-900 dark:text-white">
                         <div className="flex items-center gap-2.5">
-                          {recipe.imageUrl && (
-                            <img src={recipe.imageUrl} alt="" className="w-8 h-8 rounded-lg object-cover" />
-                          )}
+                          {(() => {
+                            const foodInfo = getRecipeFoodInfo(recipe);
+                            return (
+                              <div className={`w-7 h-7 rounded-lg ${foodInfo.bgLight} ${foodInfo.bgDark} flex items-center justify-center text-sm shrink-0 border border-zinc-200 dark:border-zinc-800`}>
+                                {foodInfo.icon}
+                              </div>
+                            );
+                          })()}
                           <span>{recipe.title}</span>
                         </div>
                       </td>

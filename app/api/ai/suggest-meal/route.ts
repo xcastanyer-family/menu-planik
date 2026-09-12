@@ -15,6 +15,7 @@ export async function POST(req: NextRequest) {
       maxTimeMinutes,
       includeIngredients = [],
       excludeIngredients = [],
+      complexity,
       customApiKey,
     } = body;
 
@@ -24,6 +25,7 @@ export async function POST(req: NextRequest) {
       dietaryPreference: dietaryPreference as DietaryPreference,
       notes,
       dishName,
+      complexity,
       servings: Number(servings) || 2,
       maxTimeMinutes: maxTimeMinutes ? Number(maxTimeMinutes) : undefined,
       includeIngredients: Array.isArray(includeIngredients) ? includeIngredients : [],

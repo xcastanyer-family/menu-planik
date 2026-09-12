@@ -5,7 +5,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Recipe } from "@/types";
 import { Play, Pause, RotateCcw, ChevronLeft, ChevronRight, CheckCircle, Timer } from "lucide-react";
-import confetti from "canvas-confetti";
+import { triggerConfetti } from "@/lib/utils";
 import { toast } from "sonner";
 
 interface CookingModeModalProps {
@@ -58,7 +58,7 @@ export const CookingModeModal: React.FC<CookingModeModalProps> = ({
   };
 
   const handleFinishCooking = () => {
-    confetti({
+    triggerConfetti({
       particleCount: 80,
       spread: 80,
       origin: { y: 0.6 },

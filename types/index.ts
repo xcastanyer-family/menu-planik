@@ -56,6 +56,8 @@ export interface Recipe {
   imageUrl?: string;
   source?: "curated" | "ai" | "custom";
   difficulty?: "easy" | "medium" | "hard";
+  complexity?: "simple" | "complex";
+  foodIcon?: string;
   moderationStatus?: RecipeModerationStatus;
   isPublic?: boolean;
   rejectionReason?: string;

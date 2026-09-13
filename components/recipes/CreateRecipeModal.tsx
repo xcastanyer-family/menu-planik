@@ -9,6 +9,8 @@ import { LocalStore } from "@/lib/storage/local-store";
 import { SupabaseProductService } from "@/lib/supabase/products";
 import { CreateProductModal } from "@/components/products/CreateProductModal";
 import { ScanBarcodeModal } from "@/components/products/ScanBarcodeModal";
+import { ProductRowSearch } from "@/components/recipes/ProductRowSearch";
+import { SelectProductsForRecipeModal } from "@/components/recipes/SelectProductsForRecipeModal";
 import { getRecipeFoodInfo, getRecipeComplexity } from "@/lib/utils";
 import {
   Sparkles,
@@ -80,6 +82,7 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   const [isCreateProductOpen, setIsCreateProductOpen] = useState(false);
   const [isScanOpen, setIsScanOpen] = useState(false);
+  const [isVisualPickerOpen, setIsVisualPickerOpen] = useState(false);
   const [targetIngIndex, setTargetIngIndex] = useState<number | null>(null);
 
   // Load database products when modal opens
@@ -331,6 +334,29 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
     setIsCreateProductOpen(false);
     setIsScanOpen(false);
     toast.success(`Producte "${newProd.name}" afegit com a ingredient!`);
+  };
+
+  const handleApplyMultipleProducts = (selectedProducts: Product[]) => {
+    if (selectedProducts.length === 0) {
+      setManualIngredients([{ id: "1", name: "", amount: 1, unit: "u.", category: "produce" }]);
+      return;
+    }
+
+    const updated: Ingredient[] = selectedProducts.map((p) => {
+      const existing = manualIngredients.find((ing) => ing.productId === p.id);
+      if (existing) return existing;
+      return {
+        id: Math.random().toString(36).substring(2, 9),
+        productId: p.id,
+        name: p.name,
+        amount: p.packageSize || 1,
+        unit: p.defaultUnit || "u.",
+        category: p.category || "other",
+      };
+    });
+
+    setManualIngredients(updated);
+    toast.success(`${selectedProducts.length} productes assignats a la recepta!`);
   };
 
   const handleManualSubmit = async (e: React.FormEvent) => {
@@ -885,6 +911,16 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <Button
                     type="button"
+                    variant="primary"
+                    size="sm"
+                    onClick={() => setIsVisualPickerOpen(true)}
+                    className="text-xs h-8 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center gap-1.5 shadow-xs"
+                  >
+                    <Search className="w-3.5 h-3.5" />
+                    Cercador Visual de Productes
+                  </Button>
+                  <Button
+                    type="button"
                     variant="outline"
                     size="sm"
                     onClick={() => {
@@ -907,7 +943,7 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
                     className="text-xs h-8 px-2.5 text-zinc-700 dark:text-zinc-300"
                   >
                     <Plus className="w-3.5 h-3.5 mr-1 text-emerald-600" />
-                    + Nou Producte
+                    + Nou
                   </Button>
                 </div>
               </div>
@@ -955,30 +991,28 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
                           : "bg-amber-50/60 dark:bg-amber-950/20 border-amber-300 dark:border-amber-800/50"
                       }`}
                     >
-                      {/* Product Selector */}
+                      {/* Product Fast Search Combobox */}
                       <div className="flex-1 min-w-0">
-                        <select
-                          value={ing.productId || ""}
-                          onChange={(e) => handleSelectProductForIngredient(i, e.target.value)}
-                          className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 rounded-lg text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
-                        >
-                          <option value="">
-                            {dbProducts.length === 0
-                              ? "— Cap producte a la BD —"
-                              : "— Tria un producte de la BD —"}
-                          </option>
-                          <option value="__NEW__">➕ Donar d&apos;alta nou producte a la BD...</option>
-                          <option value="__SCAN__">📸 Escanejar codi de barres nou...</option>
-                          <optgroup label="Productes a la Base de Dades">
-                            {[...dbProducts]
-                              .sort((a, b) => a.name.localeCompare(b.name, "ca"))
-                              .map((p) => (
-                                <option key={p.id} value={p.id}>
-                                  {p.name} {p.brand ? `(${p.brand})` : ""} [{p.defaultUnit || "u."}]
-                                </option>
-                              ))}
-                          </optgroup>
-                        </select>
+                        <ProductRowSearch
+                          products={dbProducts}
+                          selectedProductId={ing.productId}
+                          onSelectProduct={(prod) => {
+                            if (prod) {
+                              handleSelectProductForIngredient(i, prod.id);
+                            } else {
+                              handleSelectProductForIngredient(i, "");
+                            }
+                          }}
+                          onOpenCreate={() => {
+                            setTargetIngIndex(i);
+                            setIsCreateProductOpen(true);
+                          }}
+                          onOpenScan={() => {
+                            setTargetIngIndex(i);
+                            setIsScanOpen(true);
+                          }}
+                          onOpenVisualPicker={() => setIsVisualPickerOpen(true)}
+                        />
                       </div>
 
                       {/* Quantity and Unit */}
@@ -1275,6 +1309,17 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
       isOpen={isScanOpen}
       onClose={() => setIsScanOpen(false)}
       onProductCreated={handleProductCreatedOrScanned}
+    />
+
+    {/* Submodal for visual product picker with live search & categories */}
+    <SelectProductsForRecipeModal
+      isOpen={isVisualPickerOpen}
+      onClose={() => setIsVisualPickerOpen(false)}
+      products={dbProducts}
+      currentIngredients={manualIngredients}
+      onSelectProducts={handleApplyMultipleProducts}
+      onOpenCreateProduct={() => setIsCreateProductOpen(true)}
+      onOpenScan={() => setIsScanOpen(true)}
     />
   </>
 );

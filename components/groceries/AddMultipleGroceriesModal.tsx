@@ -562,3 +562,4 @@ export const AddMultipleGroceriesModal: React.FC<AddMultipleGroceriesModalProps>
     </Modal>
   );
 };
+

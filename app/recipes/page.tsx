@@ -110,9 +110,9 @@ export default function RecipesPage() {
         <Button
           variant="primary"
           onClick={() => setIsCreateOpen(true)}
-          className="bg-gradient-to-r from-primary-600 to-emerald-600 hover:from-primary-700 hover:to-emerald-700 text-white"
+          className="w-full sm:w-auto justify-center bg-gradient-to-r from-primary-600 to-emerald-600 hover:from-primary-700 hover:to-emerald-700 text-white font-semibold shadow-sm"
         >
-          <Plus className="w-4 h-4" />
+          <Plus className="w-4 h-4 mr-1.5" />
           Afegeix o Genera Recepta
         </Button>
       </div>

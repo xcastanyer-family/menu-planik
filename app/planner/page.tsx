@@ -288,34 +288,47 @@ export default function PlannerPage() {
         {/* Action buttons */}
         <div className="flex items-center gap-2 flex-wrap w-full md:w-auto">
           <Button
+            variant="primary"
+            size="sm"
+            onClick={() => setIsGenerateOpen(true)}
+            className="bg-gradient-to-r from-primary-600 to-emerald-600 hover:from-primary-700 hover:to-emerald-700 text-white flex-1 sm:flex-initial justify-center shadow-sm text-xs font-semibold"
+          >
+            <Sparkles className="w-3.5 h-3.5 mr-1 text-emerald-100" />
+            <span>Regenera amb IA</span>
+          </Button>
+
+          <Button
             variant="outline"
             size="sm"
             onClick={toggleAllBreakfast}
             title={allBreakfastExpanded ? "Amaga idees d'esmorzar" : "Mostra idees d'esmorzar"}
-            className="border-amber-200/80 dark:border-amber-800/60 bg-amber-50/50 dark:bg-amber-950/20 text-amber-900 dark:text-amber-200 hover:bg-amber-100/70"
+            className="border-amber-200/80 dark:border-amber-800/60 bg-amber-50/50 dark:bg-amber-950/20 text-amber-900 dark:text-amber-200 hover:bg-amber-100/70 text-xs flex-none"
           >
-            <Lightbulb className="w-4 h-4 text-amber-500" />
+            <Lightbulb className="w-3.5 h-3.5 text-amber-500 sm:mr-1" />
             <span className="hidden sm:inline">
               {allBreakfastExpanded ? "Amaga Esmorzars" : "Idees Esmorzar"}
             </span>
           </Button>
 
           <Button
-            variant="primary"
-            onClick={() => setIsGenerateOpen(true)}
-            className="bg-gradient-to-r from-primary-600 to-emerald-600 hover:from-primary-700 hover:to-emerald-700 text-white"
+            variant="outline"
+            size="sm"
+            onClick={handleSyncGroceries}
+            title="Sincronitza llista de la compra"
+            className="text-xs flex-none"
           >
-            <Sparkles className="w-4 h-4 text-emerald-100" />
-            Regenera Setmana amb IA
-          </Button>
-
-          <Button variant="outline" size="sm" onClick={handleSyncGroceries} title="Sincronitza llista de la compra">
-            <ShoppingCart className="w-4 h-4" />
+            <ShoppingCart className="w-3.5 h-3.5 sm:mr-1" />
             <span className="hidden sm:inline">Actualitza Compra</span>
           </Button>
 
-          <Button variant="outline" size="sm" onClick={handlePrint} title="Imprimeix o desa en PDF">
-            <Printer className="w-4 h-4" />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handlePrint}
+            title="Imprimeix o desa en PDF"
+            className="text-xs flex-none"
+          >
+            <Printer className="w-3.5 h-3.5 sm:mr-1" />
             <span className="hidden sm:inline">Imprimeix</span>
           </Button>
         </div>

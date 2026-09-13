@@ -18,7 +18,7 @@ export default function RootLayout({
     <html lang="ca" suppressHydrationWarning>
       <body
         suppressHydrationWarning
-        className="antialiased selection:bg-primary-500/20 selection:text-primary-700 min-h-screen flex flex-col pb-20 md:pb-0"
+        className="antialiased selection:bg-primary-500/20 selection:text-primary-700 min-h-screen flex flex-col pb-24 lg:pb-0"
       >
         <Toaster position="top-right" richColors closeButton />
         <Navbar />

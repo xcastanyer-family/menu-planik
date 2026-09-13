@@ -274,11 +274,11 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
           </div>
         </div>
 
-        <div className="flex justify-end gap-2 pt-2 border-t border-zinc-100 dark:border-zinc-800">
-          <Button type="button" variant="outline" size="sm" onClick={onClose}>
+        <div className="flex flex-col-reverse sm:flex-row justify-end gap-2.5 pt-3 border-t border-zinc-100 dark:border-zinc-800">
+          <Button type="button" variant="outline" size="sm" onClick={onClose} className="w-full sm:w-auto justify-center">
             Cancel·la
           </Button>
-          <Button type="submit" variant="primary" size="sm" disabled={isSubmitting}>
+          <Button type="submit" variant="primary" size="sm" disabled={isSubmitting} className="w-full sm:w-auto justify-center">
             <Save className="w-3.5 h-3.5 mr-1" />
             {isSubmitting ? "Desant a la BD..." : productToEdit ? "Actualitza" : "Desa a la Base de Dades"}
           </Button>

@@ -83,12 +83,12 @@ export const JoinFamilyModal: React.FC<JoinFamilyModalProps> = ({
           required
         />
 
-        <div className="flex justify-end gap-3 pt-3 border-t border-zinc-100 dark:border-zinc-800">
-          <Button type="button" variant="outline" onClick={onClose}>
+        <div className="flex flex-col-reverse sm:flex-row justify-end gap-2.5 pt-3 border-t border-zinc-100 dark:border-zinc-800">
+          <Button type="button" variant="outline" onClick={onClose} className="w-full sm:w-auto justify-center">
             Cancel·la
           </Button>
-          <Button type="submit" variant="primary" isLoading={isLoading} className="bg-primary-600 hover:bg-primary-700 text-white">
-            <LogIn className="w-4 h-4" />
+          <Button type="submit" variant="primary" isLoading={isLoading} className="w-full sm:w-auto justify-center bg-primary-600 hover:bg-primary-700 text-white font-semibold">
+            <LogIn className="w-4 h-4 mr-1.5" />
             Entra a la Família
           </Button>
         </div>

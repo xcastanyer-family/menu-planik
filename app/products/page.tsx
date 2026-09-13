@@ -109,31 +109,31 @@ export default function ProductsPage() {
 
       {/* Selector de mode superior (Pestanyes netes) */}
       <div className="flex items-center justify-center sm:justify-start">
-        <div className="bg-zinc-100 dark:bg-zinc-800/80 p-1 rounded-2xl flex items-center gap-1 border border-zinc-200/80 dark:border-zinc-700/60 shadow-inner">
+        <div className="bg-zinc-100 dark:bg-zinc-800/80 p-1 rounded-2xl flex items-center gap-1 border border-zinc-200/80 dark:border-zinc-700/60 shadow-inner w-full sm:w-auto">
           <button
             type="button"
             onClick={() => setViewMode("scanner")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
+            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition ${
               viewMode === "scanner"
                 ? "bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white shadow-sm"
                 : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200"
             }`}
           >
-            <Camera className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-            <span>Captura Ràpida (Codi de Barres)</span>
+            <Camera className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <span className="truncate">Captura Ràpida</span>
           </button>
 
           <button
             type="button"
             onClick={() => setViewMode("catalog")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
+            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition ${
               viewMode === "catalog"
                 ? "bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white shadow-sm"
                 : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200"
             }`}
           >
-            <LayoutGrid className="w-4 h-4 text-primary-600 dark:text-primary-400" />
-            <span>Catàleg de Productes ({products.length})</span>
+            <LayoutGrid className="w-4 h-4 text-primary-600 dark:text-primary-400 shrink-0" />
+            <span className="truncate">Catàleg ({products.length})</span>
           </button>
         </div>
       </div>

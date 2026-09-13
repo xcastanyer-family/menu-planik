@@ -471,27 +471,29 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
             </label>
 
             {/* Actions for generated recipe */}
-            <div className="flex items-center justify-between pt-2 border-t border-zinc-100 dark:border-zinc-800 gap-2">
+            <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between pt-3 border-t border-zinc-100 dark:border-zinc-800 gap-2.5">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 onClick={() => setGeneratedRecipe(null)}
+                className="w-full sm:w-auto justify-center"
               >
                 <RotateCcw className="w-3.5 h-3.5 mr-1" />
                 Ajustar especificacions
               </Button>
 
-              <div className="flex items-center gap-2">
-                <Button type="button" variant="outline" size="sm" onClick={handleCloseModal}>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <Button type="button" variant="outline" size="sm" onClick={handleCloseModal} className="flex-1 sm:flex-initial justify-center">
                   Cancel·la
                 </Button>
                 <Button
                   type="button"
                   variant="primary"
+                  size="sm"
                   isLoading={isSaving}
                   onClick={handleSaveGenerated}
-                  className="bg-gradient-to-r from-primary-600 to-emerald-600 text-white"
+                  className="flex-1 sm:flex-initial justify-center bg-gradient-to-r from-primary-600 to-emerald-600 text-white font-semibold shadow-sm"
                 >
                   <Check className="w-4 h-4 mr-1.5" />
                   Desa Recepta
@@ -595,8 +597,8 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
             </label>
 
             {/* Action Buttons */}
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-zinc-100 dark:border-zinc-800">
-              <Button type="button" variant="outline" onClick={handleCloseModal}>
+            <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2.5 pt-3 border-t border-zinc-100 dark:border-zinc-800">
+              <Button type="button" variant="outline" onClick={handleCloseModal} className="w-full sm:w-auto justify-center">
                 Cancel·la
               </Button>
               <Button
@@ -604,10 +606,10 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
                 variant="primary"
                 isLoading={isGenerating}
                 disabled={!urlInput.trim()}
-                className="bg-gradient-to-r from-primary-600 to-emerald-600 text-white shadow-md shadow-primary-500/20"
+                className="w-full sm:w-auto justify-center bg-gradient-to-r from-primary-600 to-emerald-600 text-white shadow-md shadow-primary-500/20"
               >
                 <Sparkles className="w-4 h-4 mr-1.5" />
-                Extreu i Genera Recepta
+                Importa Recepta amb IA
               </Button>
             </div>
           </form>
@@ -755,11 +757,11 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
               rows={4}
             />
 
-            <div className="flex justify-end gap-3 pt-3 border-t border-zinc-100 dark:border-zinc-800">
-              <Button type="button" variant="outline" onClick={handleCloseModal}>
+            <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2.5 pt-3 border-t border-zinc-100 dark:border-zinc-800">
+              <Button type="button" variant="outline" onClick={handleCloseModal} className="w-full sm:w-auto justify-center">
                 Cancel·la
               </Button>
-              <Button type="submit" variant="primary" isLoading={isSaving}>
+              <Button type="submit" variant="primary" isLoading={isSaving} className="w-full sm:w-auto justify-center">
                 Desa Recepta Manual
               </Button>
             </div>
@@ -911,17 +913,17 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
             </label>
 
             {/* Footer / Buttons */}
-            <div className="flex items-center justify-between pt-3 border-t border-zinc-100 dark:border-zinc-800">
+            <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between pt-3 border-t border-zinc-100 dark:border-zinc-800 gap-2.5">
               <button
                 type="button"
                 onClick={() => setActiveTab("manual")}
-                className="text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 underline"
+                className="text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 underline text-center sm:text-left py-1"
               >
                 Crear manualment sense IA
               </button>
 
-              <div className="flex items-center gap-2">
-                <Button type="button" variant="outline" onClick={handleCloseModal}>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <Button type="button" variant="outline" onClick={handleCloseModal} className="flex-1 sm:flex-initial justify-center">
                   Cancel·la
                 </Button>
                 <Button
@@ -929,10 +931,10 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
                   variant="primary"
                   isLoading={isGenerating}
                   disabled={!dishName.trim() && !notes.trim()}
-                  className="bg-gradient-to-r from-primary-600 to-emerald-600 text-white shadow-md shadow-primary-500/20"
+                  className="flex-1 sm:flex-initial justify-center bg-gradient-to-r from-primary-600 to-emerald-600 text-white shadow-md shadow-primary-500/20 text-xs font-semibold"
                 >
                   <Sparkles className="w-4 h-4 mr-1.5" />
-                  Genera Recepta amb IA
+                  Genera amb IA
                 </Button>
               </div>
             </div>

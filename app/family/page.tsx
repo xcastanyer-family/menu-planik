@@ -132,14 +132,14 @@ export default function FamilyPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <Button variant="primary" onClick={() => setIsInviteOpen(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white">
-            <UserPlus className="w-4 h-4" />
+        <div className="flex items-center gap-2.5 w-full sm:w-auto flex-col sm:flex-row">
+          <Button variant="primary" onClick={() => setIsInviteOpen(true)} className="w-full sm:w-auto justify-center bg-emerald-600 hover:bg-emerald-700 text-white font-semibold">
+            <UserPlus className="w-4 h-4 mr-1.5" />
             Convida Membre
           </Button>
 
-          <Button variant="outline" onClick={() => setIsJoinOpen(true)}>
-            <KeyRound className="w-4 h-4" />
+          <Button variant="outline" onClick={() => setIsJoinOpen(true)} className="w-full sm:w-auto justify-center">
+            <KeyRound className="w-4 h-4 mr-1.5" />
             Entra amb un altre Codi
           </Button>
         </div>

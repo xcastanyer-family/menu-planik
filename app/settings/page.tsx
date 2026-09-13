@@ -321,8 +321,8 @@ export default function SettingsPage() {
         </div>
 
         <div className="flex justify-end">
-          <Button type="submit" variant="primary" size="lg" className="px-8">
-            <Save className="w-4 h-4" />
+          <Button type="submit" variant="primary" size="lg" className="w-full sm:w-auto justify-center px-8 shadow-sm">
+            <Save className="w-4 h-4 mr-1.5" />
             Desa la Configuració
           </Button>
         </div>

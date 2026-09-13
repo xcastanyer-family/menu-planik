@@ -49,7 +49,7 @@ export const MobileNav: React.FC = () => {
   ];
 
   return (
-    <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 dark:bg-zinc-950/95 backdrop-blur-lg border-t border-zinc-200/90 dark:border-zinc-800 px-1 py-1">
+    <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 dark:bg-zinc-950/95 backdrop-blur-lg border-t border-zinc-200/90 dark:border-zinc-800 px-1 pt-1 pb-[calc(0.25rem+env(safe-area-inset-bottom))] shadow-lg">
       <nav className="flex items-center justify-around">
         {navItems.map((item) => {
           const Icon = item.icon;
@@ -59,9 +59,9 @@ export const MobileNav: React.FC = () => {
               key={item.href}
               href={item.href}
               className={cn(
-                "relative flex flex-col items-center justify-center py-1 px-1.5 rounded-xl transition-all duration-150 text-[9.5px] font-medium",
+                "relative flex flex-col items-center justify-center py-1 px-1 rounded-xl transition-all duration-150 text-[10px] font-medium min-w-[44px]",
                 isActive
-                  ? "text-primary-600 dark:text-primary-400 font-semibold"
+                  ? "text-primary-600 dark:text-primary-400 font-bold"
                   : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200"
               )}
             >
@@ -78,7 +78,7 @@ export const MobileNav: React.FC = () => {
                   </span>
                 )}
               </div>
-              <span className="truncate max-w-[42px] text-center">{item.label}</span>
+              <span className="truncate max-w-[50px] text-center leading-tight">{item.label}</span>
             </Link>
           );
         })}

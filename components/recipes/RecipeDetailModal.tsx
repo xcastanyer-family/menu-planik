@@ -557,18 +557,35 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
           </div>
 
           {/* Footer Actions */}
-          <div className="pt-4 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-zinc-100 dark:border-zinc-800">
-            <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
-              <Button variant="outline" size="sm" onClick={onClose} className="flex-1 sm:flex-none">
+          <div className="pt-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-t border-zinc-100 dark:border-zinc-800">
+            {onStartCooking && (
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                onClick={() => {
+                  onClose();
+                  onStartCooking(recipe);
+                }}
+                className="w-full sm:order-last sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white justify-center font-semibold shadow-sm text-xs"
+              >
+                <Play className="w-4 h-4 fill-white mr-1.5" />
+                Inicia Mode Cuina
+              </Button>
+            )}
+
+            <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full sm:w-auto">
+              <Button variant="outline" size="sm" onClick={onClose} className="text-xs justify-center">
                 Tanca
               </Button>
 
               <Button
+                type="button"
                 variant="outline"
                 size="sm"
                 onClick={handleTogglePublic}
                 className={cn(
-                  "text-xs transition",
+                  "text-xs transition justify-center",
                   isCurrentlyPublic
                     ? "text-zinc-600 hover:bg-zinc-100 border-zinc-200 dark:text-zinc-300 dark:border-zinc-700"
                     : "text-emerald-600 hover:bg-emerald-50 border-emerald-200 dark:text-emerald-400 dark:border-emerald-800"
@@ -577,56 +594,43 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
                 {isCurrentlyPublic ? (
                   <>
                     <Lock className="w-3.5 h-3.5 mr-1" />
-                    Fer Privada
+                    <span>Privada</span>
                   </>
                 ) : (
                   <>
                     <Globe className="w-3.5 h-3.5 mr-1" />
-                    Publicar al Catàleg
+                    <span>Publica</span>
                   </>
                 )}
               </Button>
 
               {onRecipeUpdated && (
                 <Button
+                  type="button"
                   variant="outline"
                   size="sm"
                   onClick={() => setIsEditing(true)}
-                  className="text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                  className="text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 justify-center"
                 >
                   <Pencil className="w-3.5 h-3.5 mr-1" />
-                  Edita
+                  <span>Edita</span>
                 </Button>
               )}
 
               {onRecipeDeleted && (
                 <Button
+                  type="button"
                   variant="ghost"
                   size="sm"
                   onClick={handleDelete}
                   isLoading={isDeleting}
-                  className="text-xs text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 hover:text-red-700"
+                  className="text-xs text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 hover:text-red-700 justify-center"
                 >
                   <Trash2 className="w-3.5 h-3.5 mr-1" />
-                  Elimina
+                  <span>Elimina</span>
                 </Button>
               )}
             </div>
-
-            {onStartCooking && (
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => {
-                  onClose();
-                  onStartCooking(recipe);
-                }}
-                className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white"
-              >
-                <Play className="w-4 h-4 fill-white mr-1" />
-                Inicia Mode Cuina
-              </Button>
-            )}
           </div>
         </div>
       )}

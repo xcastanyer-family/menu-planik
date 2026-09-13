@@ -103,9 +103,9 @@ export const SwapMealModal: React.FC<SwapMealModalProps> = ({
             size="sm"
             onClick={handleAiSuggest}
             isLoading={isSuggestingAI}
-            className="bg-gradient-to-r from-primary-600 to-emerald-600 text-white shrink-0"
+            className="w-full sm:w-auto justify-center bg-gradient-to-r from-primary-600 to-emerald-600 text-white shrink-0 font-semibold"
           >
-            <Sparkles className="w-4 h-4" />
+            <Sparkles className="w-4 h-4 mr-1.5" />
             Suggereix amb IA
           </Button>
         </div>

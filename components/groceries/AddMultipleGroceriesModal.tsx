@@ -261,7 +261,7 @@ export const AddMultipleGroceriesModal: React.FC<AddMultipleGroceriesModalProps>
       title="Afegir Múltiples Articles a la Compra"
       maxWidth="4xl"
     >
-      <div className="flex flex-col h-[75vh] max-h-[750px] -mx-6 -my-4">
+      <div className="flex flex-col h-[78vh] max-h-[750px] -mx-4 sm:-mx-6 -mt-3 sm:-mt-4 -mb-4 sm:-mb-6">
         {/* Top Control Bar: Search and Category Filter */}
         <div className="p-4 sm:p-5 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 space-y-3 shrink-0">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
@@ -541,7 +541,7 @@ export const AddMultipleGroceriesModal: React.FC<AddMultipleGroceriesModalProps>
               variant="outline"
               size="sm"
               onClick={onClose}
-              className="flex-1 sm:flex-initial"
+              className="px-3 shrink-0 sm:flex-initial text-xs"
             >
               Cancel·la
             </Button>
@@ -551,10 +551,10 @@ export const AddMultipleGroceriesModal: React.FC<AddMultipleGroceriesModalProps>
               variant="primary"
               size="sm"
               onClick={handleApply}
-              className="flex-1 sm:flex-initial bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold shadow-md shadow-emerald-600/20"
+              className="flex-1 sm:flex-initial bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold shadow-md shadow-emerald-600/20 text-xs justify-center"
             >
               <Check className="w-4 h-4 mr-1.5 stroke-[2.5]" />
-              Aplicar a la Llista ({totalSelectedCount})
+              <span>Aplicar a la Llista ({totalSelectedCount})</span>
             </Button>
           </div>
         </div>

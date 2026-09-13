@@ -818,3 +818,4 @@ export const ContinuousProductScanner: React.FC<ContinuousProductScannerProps> =
     </div>
   );
 };
+

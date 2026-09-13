@@ -95,12 +95,12 @@ export const AddPantryItemModal: React.FC<AddPantryItemModalProps> = ({
           />
         </div>
 
-        <div className="flex justify-end gap-3 pt-3 border-t border-zinc-100 dark:border-zinc-800">
-          <Button type="button" variant="outline" onClick={onClose}>
+        <div className="flex flex-col-reverse sm:flex-row justify-end gap-2.5 pt-3 border-t border-zinc-100 dark:border-zinc-800">
+          <Button type="button" variant="outline" onClick={onClose} className="w-full sm:w-auto justify-center">
             Cancel·la
           </Button>
-          <Button type="submit" variant="primary">
-            <Plus className="w-4 h-4" />
+          <Button type="submit" variant="primary" className="w-full sm:w-auto justify-center">
+            <Plus className="w-4 h-4 mr-1.5" />
             Desa al Rebost
           </Button>
         </div>

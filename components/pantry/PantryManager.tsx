@@ -64,19 +64,19 @@ export const PantryManager: React.FC<PantryManagerProps> = ({
           )}
         </div>
 
-        <div className="flex items-center gap-2.5 flex-wrap">
+        <div className="flex items-center gap-2.5 w-full sm:w-auto flex-col sm:flex-row">
           <Button
             variant="primary"
             onClick={onCookWithPantry}
             isLoading={isGeneratingRecipes}
-            className="bg-gradient-to-r from-emerald-600 to-primary-600 hover:from-emerald-700 hover:to-primary-700 text-white shadow-md shadow-emerald-600/20"
+            className="w-full sm:w-auto justify-center bg-gradient-to-r from-emerald-600 to-primary-600 hover:from-emerald-700 hover:to-primary-700 text-white shadow-md shadow-emerald-600/20"
           >
-            <Sparkles className="w-4 h-4 text-emerald-100" />
+            <Sparkles className="w-4 h-4 text-emerald-100 mr-1.5" />
             Què cuino amb això?
           </Button>
 
-          <Button variant="outline" onClick={onOpenAddItemModal}>
-            <Plus className="w-4 h-4" />
+          <Button variant="outline" onClick={onOpenAddItemModal} className="w-full sm:w-auto justify-center">
+            <Plus className="w-4 h-4 mr-1.5" />
             Afegeix Ingredient
           </Button>
         </div>

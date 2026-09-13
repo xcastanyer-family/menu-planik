@@ -3,7 +3,7 @@
 import React from "react";
 import { MealSlot, Recipe, DayOfWeek } from "@/types";
 import { formatMealTypeName, triggerConfetti } from "@/lib/utils";
-import { Clock, Flame, Sparkles, RefreshCw, CheckCircle2, Utensils, ArrowUpDown } from "lucide-react";
+import { Clock, Flame, Sparkles, RefreshCw, CheckCircle2, Utensils, ArrowUpDown, BookOpen } from "lucide-react";
 import { toast } from "sonner";
 
 interface MealSlotCardProps {
@@ -136,12 +136,12 @@ export const MealSlotCard: React.FC<MealSlotCardProps> = ({
             </div>
 
             {/* Quick Action Buttons */}
-            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
               {(slot.mealType === "lunch" || slot.mealType === "dinner") && onSwapLunchDinner && (
                 <button
                   onClick={() => onSwapLunchDinner(slot.day)}
                   title={slot.mealType === "lunch" ? "Canvia pel sopar" : "Canvia pel dinar"}
-                  className="p-1 rounded-md text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition"
+                  className="p-1.5 sm:p-1 rounded-lg text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition"
                 >
                   <ArrowUpDown className="w-3.5 h-3.5" />
                 </button>
@@ -150,16 +150,16 @@ export const MealSlotCard: React.FC<MealSlotCardProps> = ({
                 onClick={() => onRegenerateWithAI(slot.id)}
                 disabled={isRegenerating}
                 title="Regenera aquest àpat amb IA"
-                className="p-1 rounded-md text-zinc-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-950/40 transition"
+                className="p-1.5 sm:p-1 rounded-lg text-zinc-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-950/40 transition"
               >
                 <Sparkles className={`w-3.5 h-3.5 ${isRegenerating ? "animate-spin text-primary-600" : ""}`} />
               </button>
               <button
                 onClick={() => onSwapMeal(slot.id)}
                 title="Tria del receptari"
-                className="p-1 rounded-md text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition"
+                className="p-1.5 sm:p-1 rounded-lg text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition"
               >
-                <RefreshCw className="w-3.5 h-3.5" />
+                <BookOpen className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>

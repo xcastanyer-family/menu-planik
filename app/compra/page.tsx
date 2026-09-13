@@ -190,31 +190,33 @@ export default function CompraPage() {
               </div>
 
               {/* Action Buttons */}
-              <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
+              <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full sm:w-auto">
                 <Button
+                  type="button"
                   variant="outline"
                   size="sm"
                   onClick={() => setIsQuickAddOpen(!isQuickAddOpen)}
-                  className="text-xs"
+                  className="text-xs justify-center"
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                  Afegeix Producte
+                  <Plus className="w-3.5 h-3.5 mr-1" />
+                  <span>Afegeix</span>
                 </Button>
 
-                <Link href="/groceries">
-                  <Button variant="outline" size="sm" className="text-xs" title="Modifica la llista borrador">
-                    <ClipboardList className="w-3.5 h-3.5" />
-                    Edita Borrador
+                <Link href="/groceries" className="contents">
+                  <Button variant="outline" size="sm" className="text-xs justify-center" title="Modifica la llista borrador">
+                    <ClipboardList className="w-3.5 h-3.5 mr-1" />
+                    <span>Edita Borrador</span>
                   </Button>
                 </Link>
 
                 <Button
+                  type="button"
                   variant="outline"
                   size="sm"
                   onClick={handleFinishShopping}
-                  className="text-xs text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-900/60 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                  className="col-span-2 sm:col-auto text-xs text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-900/60 hover:bg-rose-50 dark:hover:bg-rose-950/30 justify-center"
                 >
-                  Finalitza Compra
+                  <span>Finalitza Compra</span>
                 </Button>
               </div>
             </div>

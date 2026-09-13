@@ -725,7 +725,7 @@ export const ScanBarcodeModal: React.FC<ScanBarcodeModalProps> = ({
               </div>
             )}
 
-            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-zinc-100 dark:border-zinc-800">
+            <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pt-3 border-t border-zinc-100 dark:border-zinc-800">
               <Button
                 type="button"
                 variant="outline"
@@ -735,10 +735,11 @@ export const ScanBarcodeModal: React.FC<ScanBarcodeModalProps> = ({
                   setIsExistingInDb(false);
                   setScanMode("idle");
                 }}
+                className="w-full sm:w-auto justify-center"
               >
                 Cancel·la
               </Button>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 w-full sm:w-auto">
                 {isExistingInDb && onProductCreated && (
                   <Button
                     type="button"
@@ -750,7 +751,7 @@ export const ScanBarcodeModal: React.FC<ScanBarcodeModalProps> = ({
                         handleClose();
                       }
                     }}
-                    className="border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/30 font-medium"
+                    className="flex-1 sm:flex-initial justify-center border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/30 font-medium"
                   >
                     Selecciona aquest producte
                   </Button>
@@ -760,11 +761,11 @@ export const ScanBarcodeModal: React.FC<ScanBarcodeModalProps> = ({
                   variant="primary"
                   size="sm"
                   disabled={isSaving}
-                  className={
+                  className={`flex-1 sm:flex-initial justify-center ${
                     isExistingInDb
                       ? "bg-blue-600 hover:bg-blue-700 text-white font-semibold"
                       : "bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
-                  }
+                  }`}
                 >
                   {isSaving
                     ? "Desant..."

@@ -143,42 +143,58 @@ export const GroceryListView: React.FC<GroceryListViewProps> = ({
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center flex-wrap gap-2">
-          <Button variant="outline" size="sm" onClick={onSyncFromMealPlan} title="Recalcula la compra des del menú actual">
-            <RefreshCw className="w-3.5 h-3.5" />
-            Actualitza del Menú
+        <div className="grid grid-cols-2 sm:flex sm:items-center sm:flex-wrap gap-2 w-full sm:w-auto">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onSyncFromMealPlan}
+            title="Recalcula la compra des del menú actual"
+            className="text-xs justify-center"
+          >
+            <RefreshCw className="w-3.5 h-3.5 mr-1" />
+            <span>Actualitza</span>
           </Button>
 
-          <Button variant="outline" size="sm" onClick={onOpenShareModal}>
-            <Share2 className="w-3.5 h-3.5" />
-            Comparteix
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onOpenShareModal}
+            className="text-xs justify-center"
+          >
+            <Share2 className="w-3.5 h-3.5 mr-1" />
+            <span>Comparteix</span>
           </Button>
 
-          <Button variant="outline" size="sm" onClick={onOpenAddItemModal}>
-            <Plus className="w-4 h-4" />
-            Afegeix Article
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onOpenAddItemModal}
+            className="text-xs justify-center"
+          >
+            <Plus className="w-3.5 h-3.5 mr-1" />
+            <span>Article Individual</span>
           </Button>
 
           <Button
             variant="primary"
             size="sm"
             onClick={onOpenMultiAddModal}
-            className="bg-primary-600 hover:bg-primary-700 text-white font-semibold shadow-sm"
+            className="bg-primary-600 hover:bg-primary-700 text-white font-semibold shadow-sm text-xs justify-center"
             title="Afegeix múltiples articles del catàleg de cop"
           >
             <LayoutGrid className="w-3.5 h-3.5 mr-1" />
-            Afegir Múltiples
+            <span>Afegir Múltiples</span>
           </Button>
 
           <Button
             variant="primary"
             size="sm"
             onClick={onPublishList}
-            className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-md shadow-emerald-600/20 font-semibold"
+            className="col-span-2 sm:col-auto bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-md shadow-emerald-600/20 font-semibold text-xs justify-center"
             title="Publica la llista perquè estigui disponible a la pantalla de Compra al supermercat"
           >
-            <Send className="w-3.5 h-3.5" />
-            Publicar Llista
+            <Send className="w-3.5 h-3.5 mr-1" />
+            <span>Publicar Llista</span>
           </Button>
         </div>
       </div>

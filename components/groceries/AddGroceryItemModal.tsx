@@ -114,12 +114,12 @@ export const AddGroceryItemModal: React.FC<AddGroceryItemModalProps> = ({
       <Modal isOpen={isOpen} onClose={onClose} title="Afegeix Producte a la Llista de Compra" maxWidth="md">
         <form onSubmit={handleSubmit} className="space-y-4 pt-1">
           {/* Barcode scan / Quick add product from database */}
-          <div className="bg-primary-50/60 dark:bg-primary-950/20 border border-primary-100 dark:border-primary-900/40 p-3 rounded-2xl flex items-center justify-between gap-2">
+          <div className="bg-primary-50/60 dark:bg-primary-950/20 border border-primary-100 dark:border-primary-900/40 p-3 rounded-2xl flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
             <div className="flex items-center gap-2 text-xs text-primary-900 dark:text-primary-200">
-              <Package className="w-4 h-4 text-primary-600" />
+              <Package className="w-4 h-4 text-primary-600 shrink-0" />
               <span>La llista de la compra fa servir productes de la base de dades.</span>
             </div>
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
               {onOpenMultiAdd && (
                 <Button
                   type="button"
@@ -129,7 +129,7 @@ export const AddGroceryItemModal: React.FC<AddGroceryItemModalProps> = ({
                     onClose();
                     onOpenMultiAdd();
                   }}
-                  className="text-xs border-primary-300 dark:border-primary-700 text-primary-700 dark:text-primary-300"
+                  className="flex-1 sm:flex-initial text-xs border-primary-300 dark:border-primary-700 text-primary-700 dark:text-primary-300 justify-center"
                 >
                   <LayoutGrid className="w-3.5 h-3.5 mr-1" />
                   Afegir Múltiples
@@ -140,7 +140,7 @@ export const AddGroceryItemModal: React.FC<AddGroceryItemModalProps> = ({
                 variant="outline"
                 size="sm"
                 onClick={() => setIsScanOpen(true)}
-                className="text-xs border-primary-300 dark:border-primary-700 text-primary-700 dark:text-primary-300"
+                className="flex-1 sm:flex-initial text-xs border-primary-300 dark:border-primary-700 text-primary-700 dark:text-primary-300 justify-center"
               >
                 <Camera className="w-3.5 h-3.5 mr-1" />
                 Escaneja Codi
@@ -266,23 +266,23 @@ export const AddGroceryItemModal: React.FC<AddGroceryItemModalProps> = ({
             </select>
           </div>
 
-          <div className="flex items-center justify-between pt-3 border-t border-zinc-100 dark:border-zinc-800">
+          <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between pt-4 border-t border-zinc-100 dark:border-zinc-800 gap-2.5">
             <Button
               type="button"
               variant="ghost"
               size="sm"
               onClick={() => setIsCreateOpen(true)}
-              className="text-xs text-primary-600 dark:text-primary-400"
+              className="text-xs text-primary-600 dark:text-primary-400 justify-center sm:justify-start"
             >
               <Plus className="w-3.5 h-3.5 mr-1" />
               Nou producte manual
             </Button>
 
-            <div className="flex gap-2">
-              <Button type="button" variant="outline" size="sm" onClick={onClose}>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <Button type="button" variant="outline" size="sm" onClick={onClose} className="flex-1 sm:flex-initial justify-center">
                 Cancel·la
               </Button>
-              <Button type="submit" variant="primary" size="sm" disabled={isSaving}>
+              <Button type="submit" variant="primary" size="sm" disabled={isSaving} className="flex-1 sm:flex-initial justify-center">
                 <Plus className="w-4 h-4 mr-1" />
                 {isSaving ? "Guardant..." : "Afegeix a la Llista"}
               </Button>

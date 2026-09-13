@@ -7,7 +7,7 @@ import { GroceryItem, GroceryCategory, Product } from "@/types";
 import { SupabaseProductService } from "@/lib/supabase/products";
 import { ScanBarcodeModal } from "@/components/products/ScanBarcodeModal";
 import { CreateProductModal } from "@/components/products/CreateProductModal";
-import { Plus, Camera, Search, Package, Check, Sparkles } from "lucide-react";
+import { Plus, Camera, Search, Package, Check, Sparkles, LayoutGrid } from "lucide-react";
 import { formatAisleCategory } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -15,12 +15,14 @@ interface AddGroceryItemModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAddItem: (item: GroceryItem) => void;
+  onOpenMultiAdd?: () => void;
 }
 
 export const AddGroceryItemModal: React.FC<AddGroceryItemModalProps> = ({
   isOpen,
   onClose,
   onAddItem,
+  onOpenMultiAdd,
 }) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -117,16 +119,33 @@ export const AddGroceryItemModal: React.FC<AddGroceryItemModalProps> = ({
               <Package className="w-4 h-4 text-primary-600" />
               <span>La llista de la compra fa servir productes de la base de dades.</span>
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setIsScanOpen(true)}
-              className="text-xs shrink-0 border-primary-300 dark:border-primary-700 text-primary-700 dark:text-primary-300"
-            >
-              <Camera className="w-3.5 h-3.5 mr-1" />
-              Escaneja Codi
-            </Button>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {onOpenMultiAdd && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    onClose();
+                    onOpenMultiAdd();
+                  }}
+                  className="text-xs border-primary-300 dark:border-primary-700 text-primary-700 dark:text-primary-300"
+                >
+                  <LayoutGrid className="w-3.5 h-3.5 mr-1" />
+                  Afegir Múltiples
+                </Button>
+              )}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsScanOpen(true)}
+                className="text-xs border-primary-300 dark:border-primary-700 text-primary-700 dark:text-primary-300"
+              >
+                <Camera className="w-3.5 h-3.5 mr-1" />
+                Escaneja Codi
+              </Button>
+            </div>
           </div>
 
           {/* Search Product in Database */}

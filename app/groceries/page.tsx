@@ -8,6 +8,7 @@ import { generateGroceriesFromPlan } from "@/lib/storage/mock-data";
 import { SupabaseProductService } from "@/lib/supabase/products";
 import { GroceryListView } from "@/components/groceries/GroceryListView";
 import { AddGroceryItemModal } from "@/components/groceries/AddGroceryItemModal";
+import { AddMultipleGroceriesModal } from "@/components/groceries/AddMultipleGroceriesModal";
 import { ShareGroceryModal } from "@/components/groceries/ShareGroceryModal";
 import { toast } from "sonner";
 
@@ -16,6 +17,7 @@ export default function GroceriesPage() {
   const [items, setItems] = useState<GroceryItem[]>([]);
   const [publishedList, setPublishedList] = useState<PublishedShoppingList | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [isMultiAddOpen, setIsMultiAddOpen] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
 
   useEffect(() => {
@@ -72,6 +74,11 @@ export default function GroceriesPage() {
     toast.success(`Afegit: ${newItem.name}`);
   };
 
+  const handleApplyMultipleItems = (updated: GroceryItem[]) => {
+    LocalStore.saveGroceries(updated);
+    setItems(updated);
+  };
+
   const handlePublishList = () => {
     if (items.length === 0) {
       toast.error("La llista està buida. Afegeix productes o importa'ls del menú abans de publicar.");
@@ -98,13 +105,26 @@ export default function GroceriesPage() {
         onSyncFromMealPlan={handleSyncFromMealPlan}
         onPublishList={handlePublishList}
         onOpenAddItemModal={() => setIsAddOpen(true)}
+        onOpenMultiAddModal={() => setIsMultiAddOpen(true)}
         onOpenShareModal={() => setIsShareOpen(true)}
+      />
+
+      <AddMultipleGroceriesModal
+        isOpen={isMultiAddOpen}
+        onClose={() => setIsMultiAddOpen(false)}
+        currentItems={items}
+        onApplyItems={handleApplyMultipleItems}
+        onOpenCreateProduct={() => setIsAddOpen(true)}
       />
 
       <AddGroceryItemModal
         isOpen={isAddOpen}
         onClose={() => setIsAddOpen(false)}
         onAddItem={handleAddItem}
+        onOpenMultiAdd={() => {
+          setIsAddOpen(false);
+          setIsMultiAddOpen(true);
+        }}
       />
 
       <ShareGroceryModal

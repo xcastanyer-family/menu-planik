@@ -4,7 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { GroceryItem, GroceryCategory, PublishedShoppingList } from "@/types";
 import { formatAisleCategory, triggerConfetti } from "@/lib/utils";
-import { Check, Trash2, Plus, Share2, RefreshCw, ShoppingBag, Send, CheckCircle2, ShoppingCart } from "lucide-react";
+import { Check, Trash2, Plus, Share2, RefreshCw, ShoppingBag, Send, CheckCircle2, ShoppingCart, LayoutGrid } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { toast } from "sonner";
 
@@ -17,6 +17,7 @@ interface GroceryListViewProps {
   onSyncFromMealPlan: () => void;
   onPublishList: () => void;
   onOpenAddItemModal: () => void;
+  onOpenMultiAddModal: () => void;
   onOpenShareModal: () => void;
 }
 
@@ -29,6 +30,7 @@ export const GroceryListView: React.FC<GroceryListViewProps> = ({
   onSyncFromMealPlan,
   onPublishList,
   onOpenAddItemModal,
+  onOpenMultiAddModal,
   onOpenShareModal,
 }) => {
   const categories: GroceryCategory[] = [
@@ -160,6 +162,17 @@ export const GroceryListView: React.FC<GroceryListViewProps> = ({
           <Button
             variant="primary"
             size="sm"
+            onClick={onOpenMultiAddModal}
+            className="bg-primary-600 hover:bg-primary-700 text-white font-semibold shadow-sm"
+            title="Afegeix múltiples articles del catàleg de cop"
+          >
+            <LayoutGrid className="w-3.5 h-3.5 mr-1" />
+            Afegir Múltiples
+          </Button>
+
+          <Button
+            variant="primary"
+            size="sm"
             onClick={onPublishList}
             className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-md shadow-emerald-600/20 font-semibold"
             title="Publica la llista perquè estigui disponible a la pantalla de Compra al supermercat"
@@ -182,13 +195,17 @@ export const GroceryListView: React.FC<GroceryListViewProps> = ({
           <p className="text-xs sm:text-sm text-zinc-500 max-w-sm mx-auto">
             Pots sincronitzar els ingredients del teu pla setmanal amb un sol clic o afegir articles manualment.
           </p>
-          <div className="pt-2 flex justify-center gap-3">
-            <Button variant="primary" size="sm" onClick={onSyncFromMealPlan}>
-              <RefreshCw className="w-3.5 h-3.5" />
+          <div className="pt-2 flex flex-wrap justify-center gap-3">
+            <Button variant="primary" size="sm" onClick={onOpenMultiAddModal} className="bg-primary-600 hover:bg-primary-700 text-white font-semibold shadow-sm">
+              <LayoutGrid className="w-3.5 h-3.5 mr-1" />
+              Afegir Múltiples
+            </Button>
+            <Button variant="outline" size="sm" onClick={onSyncFromMealPlan}>
+              <RefreshCw className="w-3.5 h-3.5 mr-1" />
               Importa del Menú
             </Button>
             <Button variant="outline" size="sm" onClick={onOpenAddItemModal}>
-              <Plus className="w-3.5 h-3.5" />
+              <Plus className="w-3.5 h-3.5 mr-1" />
               Afegeix Article
             </Button>
           </div>

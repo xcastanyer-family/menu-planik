@@ -70,6 +70,11 @@ export async function POST(req: NextRequest) {
       console.warn("Could not query Supabase in generate-plan route:", dbErr);
     }
 
+    // Només les receptes manuals / senzilles basades en productes BD conformen el menú setmanal
+    const menuEligibleRecipes = allRecipes.filter(
+      (r) => (r.complexity || "simple") !== "complex"
+    );
+
     const plan = await generateWeeklyPlanWithAI({
       dietaryPreference: dietaryPreference as DietaryPreference,
       targetCalories: Number(targetCalories),
@@ -77,7 +82,7 @@ export async function POST(req: NextRequest) {
       allergies,
       dislikes,
       notes,
-      recipes: allRecipes,
+      recipes: menuEligibleRecipes,
       customApiKey,
     });
 

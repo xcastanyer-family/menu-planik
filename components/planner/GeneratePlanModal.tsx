@@ -89,7 +89,7 @@ export const GeneratePlanModal: React.FC<GeneratePlanModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       title="Genera Menú Setmanal amb IA"
-      description="La intel·ligència artificial crearà un pla equilibrat a mida per als teus gustos i necessitats."
+      description="La intel·ligència artificial organitzarà el menú setmanal únicament a partir de les receptes basades en els teus productes emmagatzemats."
       maxWidth="xl"
     >
       <form onSubmit={handleSubmit} className="space-y-4 pt-2">

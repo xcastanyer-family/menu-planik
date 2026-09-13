@@ -374,11 +374,11 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
                     </span>
                     {complexity === "complex" ? (
                       <span className="px-2.5 py-1 text-xs font-bold bg-purple-100 text-purple-800 dark:bg-purple-950/80 dark:text-purple-300 rounded-lg border border-purple-300/50 shadow-xs">
-                        🟣 Complexa
+                        🟣 Cuina Puntual
                       </span>
                     ) : (
                       <span className="px-2.5 py-1 text-xs font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 rounded-lg border border-emerald-300/50 shadow-xs">
-                        🟢 Senzilla
+                        🟢 Menú (BD)
                       </span>
                     )}
                   </div>
@@ -524,8 +524,13 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
                       >
                         {isChecked && <Check className="w-3.5 h-3.5" />}
                       </div>
-                      <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                      <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5">
                         {ing.name}
+                        {ing.productId && (
+                          <span className="px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950/60 rounded border border-emerald-300 dark:border-emerald-800">
+                            ✓ BD
+                          </span>
+                        )}
                       </span>
                     </div>
                     <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">

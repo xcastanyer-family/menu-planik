@@ -29,7 +29,7 @@ export const SwapMealModal: React.FC<SwapMealModalProps> = ({
   onSwapLunchDinner,
 }) => {
   const [search, setSearch] = useState("");
-  const [complexityFilter, setComplexityFilter] = useState<"all" | "simple" | "complex">("all");
+  const [complexityFilter, setComplexityFilter] = useState<"simple" | "complex" | "all">("simple");
   const [isSuggestingAI, setIsSuggestingAI] = useState(false);
 
   if (!slot) return null;
@@ -81,7 +81,7 @@ export const SwapMealModal: React.FC<SwapMealModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       title={`Canvia àpat: ${formatMealTypeName(slot.mealType)} (${formatDayName(slot.day)})`}
-      description="Tria qualsevol recepta existent (senzilles o complexes) o demana una alternativa amb IA."
+      description="Tria una recepta del menú setmanal (basada en productes BD) o una recepta puntual complexa."
       maxWidth="xl"
     >
       <div className="space-y-3.5 pt-1">
@@ -114,17 +114,6 @@ export const SwapMealModal: React.FC<SwapMealModalProps> = ({
         <div className="flex items-center gap-1.5 p-1 bg-zinc-100 dark:bg-zinc-800/70 rounded-xl">
           <button
             type="button"
-            onClick={() => setComplexityFilter("all")}
-            className={`flex-1 py-1.5 px-2 text-xs font-semibold rounded-lg transition ${
-              complexityFilter === "all"
-                ? "bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-xs"
-                : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200"
-            }`}
-          >
-            Totes ({recipes.length})
-          </button>
-          <button
-            type="button"
             onClick={() => setComplexityFilter("simple")}
             className={`flex-1 py-1.5 px-2 text-xs font-semibold rounded-lg transition ${
               complexityFilter === "simple"
@@ -132,18 +121,29 @@ export const SwapMealModal: React.FC<SwapMealModalProps> = ({
                 : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200"
             }`}
           >
-            ⚡ Senzilles ({simpleCount})
+            🟢 Receptes del Menú ({simpleCount})
           </button>
           <button
             type="button"
             onClick={() => setComplexityFilter("complex")}
             className={`flex-1 py-1.5 px-2 text-xs font-semibold rounded-lg transition ${
               complexityFilter === "complex"
-                ? "bg-white dark:bg-zinc-700 text-amber-700 dark:text-amber-300 shadow-xs font-bold"
+                ? "bg-white dark:bg-zinc-700 text-purple-700 dark:text-purple-300 shadow-xs font-bold"
                 : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200"
             }`}
           >
-            👨‍🍳 Complexes ({complexCount})
+            🟣 Receptes Complexes ({complexCount})
+          </button>
+          <button
+            type="button"
+            onClick={() => setComplexityFilter("all")}
+            className={`py-1.5 px-2.5 text-xs font-semibold rounded-lg transition ${
+              complexityFilter === "all"
+                ? "bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-xs"
+                : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200"
+            }`}
+          >
+            Totes ({recipes.length})
           </button>
         </div>
 

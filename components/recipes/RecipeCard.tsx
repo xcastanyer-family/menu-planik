@@ -29,11 +29,11 @@ export const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick }) => {
           <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5 flex-wrap justify-end">
             {complexity === "complex" ? (
               <span className="px-2 py-0.5 text-[10px] font-bold bg-purple-100 text-purple-800 dark:bg-purple-950/80 dark:text-purple-300 rounded-full border border-purple-300/50 shadow-xs flex items-center gap-1">
-                🟣 Complexa
+                🟣 Cuina Puntual
               </span>
             ) : (
               <span className="px-2 py-0.5 text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 rounded-full border border-emerald-300/50 shadow-xs flex items-center gap-1">
-                🟢 Senzilla
+                🟢 Menú (BD)
               </span>
             )}
 

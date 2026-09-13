@@ -58,8 +58,8 @@ export default function RecipesPage() {
 
   const filterTags = [
     { id: "all", label: "Totes les Receptes" },
-    { id: "simple", label: "🟢 Senzilles" },
-    { id: "complex", label: "🟣 Complexes" },
+    { id: "simple", label: "🟢 Menú Setmanal (BD)" },
+    { id: "complex", label: "🟣 Cuina Puntual (Complexes)" },
     { id: "Primers", label: "🍝 Primers" },
     { id: "Segons", label: "🥩 Segons" },
     { id: "Esmorzar", label: "🥐 Esmorzar" },
@@ -103,7 +103,7 @@ export default function RecipesPage() {
             El teu Receptari
           </h1>
           <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-            Explora, personalitza i crea noves receptes delicioses amb l'ajuda de la IA.
+            Receptes manuals centrades en els productes de la BD per al menú setmanal, i receptes complexes per a cuinar puntualment.
           </p>
         </div>
 

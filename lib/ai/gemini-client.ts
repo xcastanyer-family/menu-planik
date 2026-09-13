@@ -28,25 +28,31 @@ export async function generateWeeklyPlanWithAI(params: {
   recipes?: Recipe[];
   customApiKey?: string;
 }): Promise<WeeklyMealPlan> {
-  const availableRecipes = params.recipes || [];
+  const allRecipes = params.recipes || [];
 
-  // CRITICAL: If no recipes in database, leave entire menu blank
-  if (availableRecipes.length === 0) {
+  // CRITICAL REQUIREMENT: El menú setmanal es conforma ÚNICAMENT per les receptes basades en productes
+  // de la BD (complexity !== 'complex'). Les receptes complexes són puntuals i estan excloses del menú setmanal.
+  const menuEligibleRecipes = allRecipes.filter(
+    (r) => (r.complexity || "simple") !== "complex"
+  );
+
+  // If no eligible recipes in database, leave entire menu blank
+  if (menuEligibleRecipes.length === 0) {
     return createEmptyMealPlan();
   }
 
   const apiKey = getApiKey(params.customApiKey);
 
   if (!apiKey) {
-    // Generate simulated plan strictly using available database recipes
-    return generateFallbackPlan(params);
+    // Generate simulated plan strictly using available eligible database recipes
+    return generateFallbackPlan({ ...params, recipes: menuEligibleRecipes });
   }
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-    const catalogForPrompt = availableRecipes.map((r) => ({
+    const catalogForPrompt = menuEligibleRecipes.map((r) => ({
       id: r.id,
       title: r.title,
       complexity: r.complexity || "simple",
@@ -61,16 +67,16 @@ export async function generateWeeklyPlanWithAI(params: {
 Ets un organitzador de menús i nutricionista expert. Tens la tasca d'organitzar el menú setmanal (Dilluns a Diumenge: esmorzar, dinar i sopar).
 
 REGLA D'OR ABSOLUTA I INNEGOCIABLE DE L'USUARI:
-"NO GENERIS EL MENÚ AMB RECETES QUE NO ESTIGUIN A LA BASE DE DADES. SI NO POTS COMPLETAR EL MENÚ, DEIXA L'ÀPAT EN BLANC."
+"El menú setmanal es conforma ÚNICAMENT amb les receptes basades en productes de la base de dades. NO utilitzis cap recepta complexa (reservades per cuinar puntualment) ni inventis cap plat. Si no pots completar l'àpat amb les receptes del catàleg, DEIXA L'ÀPAT EN BLANC."
 
 Això implica:
-1. NOMÉS i EXCLUSIVAMENT pots escollir receptes d'aquest CATÀLEG DE LA BASE DE DADES:
+1. NOMÉS i EXCLUSIVAMENT pots escollir receptes d'aquest CATÀLEG PER AL MENÚ SETMANAL:
 ${JSON.stringify(catalogForPrompt, null, 2)}
 
 2. ESTÀ TOTALMENT PROHIBIT inventar cap recepta o plat que no figuri al catàleg superior.
-3. Si no hi ha receptes suficients o adequades per a un àpat (per exemple, si no hi ha receptes d'esmorzar, o no hi ha prou varietat per a tots els dinars/sopars), HAS DE DEIXAR L'ÀPAT EN BLANC (posant "recipeId": null).
-4. Receptes senzilles: Prioritza les receptes amb complexity: "simple" per a la planificació setmanal regular.
-5. Si l'usuari a les notes demana un plat concret ("${params.notes || ""}") i existeix a la base de dades, assigna'l exactament.
+3. Totes les receptes han de ser d'aquest catàleg (les receptes complexes NO formen part del menú setmanal regular).
+4. Si no hi ha receptes suficients o adequades per a un àpat (per exemple, si no hi ha receptes d'esmorzar, o no hi ha prou varietat per a tots els dinars/sopars), HAS DE DEIXAR L'ÀPAT EN BLANC (posant "recipeId": null).
+5. Si l'usuari a les notes demana un plat concret ("${params.notes || ""}") i existeix al catàleg, assigna'l exactament.
 
 Respon EXCLUSIVAMENT amb un JSON vàlid amb aquesta estructura:
 {
@@ -115,10 +121,10 @@ Per a qualsevol àpat que no puguis omplir amb les receptes existents, posa {"re
         let matchedRecipe: Recipe | undefined = undefined;
 
         if (meal && meal.recipeId) {
-          matchedRecipe = availableRecipes.find((r) => r.id === meal.recipeId);
+          matchedRecipe = menuEligibleRecipes.find((r) => r.id === meal.recipeId);
         }
         if (!matchedRecipe && meal && meal.title) {
-          matchedRecipe = availableRecipes.find(
+          matchedRecipe = menuEligibleRecipes.find(
             (r) => r.title.trim().toLowerCase() === meal.title.trim().toLowerCase()
           );
         }
@@ -378,17 +384,21 @@ function generateFallbackPlan(params: {
   recipes?: Recipe[];
 }): WeeklyMealPlan {
   const days: DayOfWeek[] = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
-  const userCatalog = params.recipes || [];
 
-  // CRITICAL REQUIREMENT: "nO ENERES EL MENUCON RECETAS QUE NO ESTEN EN BASE DE DATOS. Si no puedes completar el menu dejalo en blanco"
-  if (userCatalog.length === 0) {
+  // CRITICAL REQUIREMENT: "Les receptes manuals/senzilles seran les úniques que conformaran el menú setmanal."
+  // Filter out any complex recipes: they are punctual/occasional and must never be in the weekly meal plan.
+  const eligibleCatalog = (params.recipes || []).filter(
+    (r) => (r.complexity || "simple") !== "complex"
+  );
+
+  if (eligibleCatalog.length === 0) {
     return createEmptyMealPlan();
   }
 
   // Deduplicate by ID / title
   const uniqueCatalog: Recipe[] = [];
   const seenIds = new Set<string>();
-  for (const r of userCatalog) {
+  for (const r of eligibleCatalog) {
     if (r.id && !seenIds.has(r.id)) {
       seenIds.add(r.id);
       uniqueCatalog.push(r);
@@ -440,13 +450,9 @@ function generateFallbackPlan(params: {
       /iogurt|torrad|cereal|porridge|pancake/i.test(r.title)
   );
 
-  const allMains = uniqueCatalog.filter(
+  const mainsPool = uniqueCatalog.filter(
     (r) => !r.tags?.some((t) => /esmorzar|desayuno|breakfast/i.test(t))
   );
-
-  // Prioritize simple recipes for weekly plan
-  const simpleMains = allMains.filter((r) => (r.complexity || "simple") === "simple");
-  const mainsPool = simpleMains.length > 0 ? simpleMains : allMains;
 
   const slots: MealSlot[] = [];
   let mainIndex = 0;

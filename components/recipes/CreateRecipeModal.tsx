@@ -1,11 +1,14 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Input, Textarea, Select } from "@/components/ui/Input";
-import { Recipe, Ingredient, DietaryPreference, MealType } from "@/types";
+import { Recipe, Ingredient, DietaryPreference, MealType, Product } from "@/types";
 import { LocalStore } from "@/lib/storage/local-store";
+import { SupabaseProductService } from "@/lib/supabase/products";
+import { CreateProductModal } from "@/components/products/CreateProductModal";
+import { ScanBarcodeModal } from "@/components/products/ScanBarcodeModal";
 import { getRecipeFoodInfo, getRecipeComplexity } from "@/lib/utils";
 import {
   Sparkles,
@@ -19,6 +22,10 @@ import {
   ChefHat,
   Globe,
   Link as LinkIcon,
+  Package,
+  ScanLine,
+  Database,
+  Search,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -68,6 +75,32 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
   const [manualInstructions, setManualInstructions] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
+  // Database Products state for product-centric recipes
+  const [dbProducts, setDbProducts] = useState<Product[]>([]);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
+  const [isCreateProductOpen, setIsCreateProductOpen] = useState(false);
+  const [isScanOpen, setIsScanOpen] = useState(false);
+  const [targetIngIndex, setTargetIngIndex] = useState<number | null>(null);
+
+  // Load database products when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      loadDbProducts();
+    }
+  }, [isOpen]);
+
+  const loadDbProducts = async () => {
+    setIsLoadingProducts(true);
+    try {
+      const res = await SupabaseProductService.getProducts();
+      setDbProducts(res.products || []);
+    } catch (e) {
+      console.warn("Error carregant productes de la base de dades:", e);
+    } finally {
+      setIsLoadingProducts(false);
+    }
+  };
+
   const handleReset = () => {
     setDishName("");
     setNotes("");
@@ -76,6 +109,10 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
     setExcludeIngredientsText("");
     setGeneratedRecipe(null);
     setActiveTab("ai");
+    setManualIngredients([{ id: "1", name: "", amount: 1, unit: "u.", category: "produce" }]);
+    setManualTitle("");
+    setManualDescription("");
+    setManualInstructions("");
   };
 
   const handleCloseModal = () => {
@@ -198,11 +235,11 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
     }
   };
 
-  // Manual fallback handlers
+  // Product-Centric Database Ingredient handlers
   const handleAddManualIngredient = () => {
     setManualIngredients((prev) => [
       ...prev,
-      { id: Math.random().toString(), name: "", amount: 100, unit: "g", category: "produce" },
+      { id: Math.random().toString(36).substring(2, 9), name: "", amount: 1, unit: "u.", category: "produce" },
     ]);
   };
 
@@ -218,6 +255,84 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
     });
   };
 
+  const handleSelectProductForIngredient = (index: number, productId: string) => {
+    if (productId === "__NEW__") {
+      setTargetIngIndex(index);
+      setIsCreateProductOpen(true);
+      return;
+    }
+    if (productId === "__SCAN__") {
+      setTargetIngIndex(index);
+      setIsScanOpen(true);
+      return;
+    }
+
+    const selectedProduct = dbProducts.find((p) => p.id === productId);
+    setManualIngredients((prev) => {
+      const copy = [...prev];
+      if (selectedProduct) {
+        copy[index] = {
+          ...copy[index],
+          productId: selectedProduct.id,
+          name: selectedProduct.name,
+          unit: selectedProduct.defaultUnit || copy[index].unit || "u.",
+          category: selectedProduct.category || copy[index].category || "other",
+          amount: copy[index].amount > 0 ? copy[index].amount : selectedProduct.packageSize || 1,
+        };
+      } else {
+        copy[index] = {
+          ...copy[index],
+          productId: undefined,
+          name: "",
+        };
+      }
+      return copy;
+    });
+  };
+
+  const handleProductCreatedOrScanned = (newProd: Product) => {
+    // Add or update to dbProducts list
+    setDbProducts((prev) => {
+      const exists = prev.some((p) => p.id === newProd.id);
+      if (exists) return prev.map((p) => (p.id === newProd.id ? newProd : p));
+      return [newProd, ...prev];
+    });
+
+    if (targetIngIndex !== null && targetIngIndex >= 0 && targetIngIndex < manualIngredients.length) {
+      // Assign to targeted row
+      setManualIngredients((prev) => {
+        const copy = [...prev];
+        copy[targetIngIndex] = {
+          ...copy[targetIngIndex],
+          productId: newProd.id,
+          name: newProd.name,
+          unit: newProd.defaultUnit || "u.",
+          category: newProd.category || "other",
+          amount: copy[targetIngIndex].amount > 0 ? copy[targetIngIndex].amount : newProd.packageSize || 1,
+        };
+        return copy;
+      });
+    } else {
+      // Append as new row
+      setManualIngredients((prev) => [
+        ...prev,
+        {
+          id: Math.random().toString(36).substring(2, 9),
+          productId: newProd.id,
+          name: newProd.name,
+          amount: newProd.packageSize || 1,
+          unit: newProd.defaultUnit || "u.",
+          category: newProd.category || "other",
+        },
+      ]);
+    }
+
+    setTargetIngIndex(null);
+    setIsCreateProductOpen(false);
+    setIsScanOpen(false);
+    toast.success(`Producte "${newProd.name}" afegit com a ingredient!`);
+  };
+
   const handleManualSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!manualTitle.trim()) {
@@ -225,12 +340,27 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
       return;
     }
 
+    if (manualIngredients.length === 0) {
+      toast.error("Afegeix com a mínim un ingredient de la base de dades.");
+      return;
+    }
+
+    // STRICT REQUIREMENT: Manual recipes can ONLY contain products from the database
+    const invalidIngredients = manualIngredients.filter(
+      (ing) => !ing.productId || !ing.name.trim()
+    );
+
+    if (invalidIngredients.length > 0) {
+      toast.error(
+        "Tots els ingredients han de ser productes existents a la base de dades. Si te'n falta algun, prem '+ Crear Producte' o '📸 Escanejar'."
+      );
+      return;
+    }
+
     const steps = manualInstructions
       .split("\n")
       .map((s) => s.trim())
       .filter(Boolean);
-
-    const validIngredients = manualIngredients.filter((ing) => ing.name.trim() !== "");
 
     const newRecipe: Recipe = {
       id: `custom-rec-${Date.now()}`,
@@ -246,22 +376,30 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
         carbs: Math.round((Number(manualCalories) || 450) * 0.1),
         fat: Math.round((Number(manualCalories) || 450) * 0.04),
       },
-      tags: ["Personalitzada"],
+      tags: [
+        "Personalitzada",
+        complexity === "simple" ? "Menú Setmanal (Productes BD)" : "Cuina Puntual",
+      ],
       dietaryTags: [dietaryTag],
       complexity,
       source: "custom",
       moderationStatus: publishPublicly ? "approved_public" : "private",
       isPublic: publishPublicly,
-      ingredients: validIngredients.length > 0 ? validIngredients : [
-        { id: "1", name: "Ingredients variats", amount: 1, unit: "unitat", category: "other" },
-      ],
-      instructions: steps.length > 0 ? steps : ["Preparar i cuinar segons preferència."],
+      ingredients: manualIngredients,
+      instructions:
+        steps.length > 0
+          ? steps
+          : ["Preparar i cuinar amb els productes de la recepta segons preferència."],
     };
 
     setIsSaving(true);
     try {
       await onRecipeCreated(newRecipe);
-      toast.success(`Recepta "${newRecipe.title}" desada correctament!`);
+      toast.success(
+        complexity === "simple"
+          ? `Recepta "${newRecipe.title}" desada i disponible per al Menú Setmanal!`
+          : `Recepta puntual "${newRecipe.title}" desada al receptari!`
+      );
       handleCloseModal();
     } catch {
       toast.error("Error en desar la recepta.");
@@ -271,29 +409,30 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
   };
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={handleCloseModal}
-      title={
-        generatedRecipe
-          ? "Revisa la Recepta Generada"
-          : activeTab === "url"
-          ? "Importa Recepta des d'URL Web"
-          : activeTab === "manual"
-          ? "Nova Recepta Manual"
-          : "Crea Nova Recepta amb IA"
-      }
-      description={
-        generatedRecipe
-          ? "La IA ha elaborat aquesta recepta seguint totes les teves especificacions. Revisa-la i desa-la."
-          : activeTab === "url"
-          ? "Enganxa l'enllaç web d'una recepta i la IA n'extraurà automàticament tots els ingredients i passos."
-          : activeTab === "manual"
-          ? "Introdueix manualment els detalls de la teva recepta."
-          : "Indica les especificacions que vols i la IA generarà una recepta detallada i a mida."
-      }
-      maxWidth="2xl"
-    >
+    <>
+      <Modal
+        isOpen={isOpen}
+        onClose={handleCloseModal}
+        title={
+          generatedRecipe
+            ? "Revisa la Recepta Generada"
+            : activeTab === "url"
+            ? "Importa Recepta des d'URL Web"
+            : activeTab === "manual"
+            ? "Nova Recepta Manual (amb Productes BD)"
+            : "Crea Nova Recepta amb IA"
+        }
+        description={
+          generatedRecipe
+            ? "La IA ha elaborat aquesta recepta seguint totes les teves especificacions. Revisa-la i desa-la."
+            : activeTab === "url"
+            ? "Enganxa l'enllaç web d'una recepta i la IA n'extraurà automàticament tots els ingredients i passos."
+            : activeTab === "manual"
+            ? "Crea una recepta amb els teus productes emmagatzemats per a utilitzar-la al menú setmanal."
+            : "Indica les especificacions que vols i la IA generarà una recepta detallada i a mida."
+        }
+        maxWidth="2xl"
+      >
       <div className="pt-2">
         {!generatedRecipe && (
           <div className="flex border-b border-zinc-200 dark:border-zinc-800 mb-4 gap-1">
@@ -614,11 +753,12 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
             </div>
           </form>
         ) : activeTab === "manual" ? (
-          /* VIEW 3: MANUAL FORM FALLBACK */
-          <form onSubmit={handleManualSubmit} className="space-y-4 max-h-[65vh] overflow-y-auto pr-1">
+          /* VIEW 3: MANUAL FORM (STRICTLY PRODUCT-CENTRIC) */
+          <form onSubmit={handleManualSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
             <div className="flex items-center justify-between pb-2 border-b border-zinc-200 dark:border-zinc-800">
-              <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
-                Mode Manual
+              <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                <Database className="w-3.5 h-3.5" />
+                Recepta amb Productes de la BD
               </span>
               <button
                 type="button"
@@ -626,13 +766,28 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
                 className="text-xs font-medium text-primary-600 hover:text-primary-700 flex items-center gap-1"
               >
                 <Sparkles className="w-3.5 h-3.5" />
-                Tornar a generar amb IA
+                Generar amb IA
               </button>
+            </div>
+
+            {/* Informational banner */}
+            <div className="bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 rounded-2xl p-3.5 flex items-start gap-3">
+              <div className="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 flex items-center justify-center shrink-0">
+                <Package className="w-5 h-5" />
+              </div>
+              <div className="text-xs space-y-1">
+                <h4 className="font-bold text-zinc-900 dark:text-zinc-100">
+                  Centrada en els teus Productes Emmagatzemats
+                </h4>
+                <p className="text-zinc-600 dark:text-zinc-400 leading-relaxed">
+                  Tots els ingredients provenen de la base de dades. Aquestes receptes senzilles són les úniques que s&apos;utilitzaran per a confeccionar el menú setmanal.
+                </p>
+              </div>
             </div>
 
             <Input
               label="Títol de la Recepta *"
-              placeholder="ex. Quiche d\x27Espinacs i Mató"
+              placeholder="ex. Llenties estofades de la casa, Salmó amb verdures..."
               value={manualTitle}
               onChange={(e) => setManualTitle(e.target.value)}
               required
@@ -640,38 +795,49 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
 
             <Textarea
               label="Breu Descripció"
-              placeholder="Una descripció deliciosa del plat..."
+              placeholder="Una descripció apetitosa del plat..."
               value={manualDescription}
               onChange={(e) => setManualDescription(e.target.value)}
               rows={2}
             />
 
+            {/* Complexity Selector */}
             <div>
               <label className="text-xs sm:text-sm font-medium text-zinc-700 dark:text-zinc-300 block mb-1.5">
-                Complexitat de la recepta
+                Destinació / Complexitat
               </label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => setComplexity("simple")}
-                  className={`py-2 px-3 rounded-xl text-xs font-semibold border flex items-center justify-center gap-1.5 transition ${
+                  className={`p-2.5 rounded-xl text-xs font-semibold border flex flex-col text-left gap-1 transition ${
                     complexity === "simple"
-                      ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 text-emerald-800 dark:text-emerald-300 shadow-xs"
+                      ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 text-emerald-900 dark:text-emerald-200 shadow-xs"
                       : "bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100"
                   }`}
                 >
-                  🟢 Senzilla (dia a dia, ràpida)
+                  <span className="flex items-center gap-1.5 font-bold">
+                    🟢 Menú Setmanal (Senzilla)
+                  </span>
+                  <span className="text-[11px] opacity-80">
+                    Recepta habitual que formarà part del planificador setmanal.
+                  </span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setComplexity("complex")}
-                  className={`py-2 px-3 rounded-xl text-xs font-semibold border flex items-center justify-center gap-1.5 transition ${
+                  className={`p-2.5 rounded-xl text-xs font-semibold border flex flex-col text-left gap-1 transition ${
                     complexity === "complex"
-                      ? "bg-purple-50 dark:bg-purple-950/40 border-purple-500 text-purple-800 dark:text-purple-300 shadow-xs"
+                      ? "bg-purple-50 dark:bg-purple-950/40 border-purple-500 text-purple-900 dark:text-purple-200 shadow-xs"
                       : "bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100"
                   }`}
                 >
-                  🟣 Complexa (elaborada)
+                  <span className="flex items-center gap-1.5 font-bold">
+                    🟣 Cuina Puntual (Complexa)
+                  </span>
+                  <span className="text-[11px] opacity-80">
+                    Per a dies especials. No entrarà al menú setmanal automàtic.
+                  </span>
                 </button>
               </div>
             </div>
@@ -703,65 +869,215 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
               />
             </div>
 
-            {/* Ingredients list */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-xs sm:text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                  Ingredients
-                </label>
-                <Button type="button" variant="ghost" size="sm" onClick={handleAddManualIngredient}>
-                  <Plus className="w-3.5 h-3.5" /> Afegeix Ingredient
-                </Button>
+            {/* Ingredients section with Database Selector */}
+            <div className="space-y-3 pt-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-zinc-200 dark:border-zinc-800 pb-2">
+                <div>
+                  <label className="text-xs sm:text-sm font-bold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5">
+                    <Database className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    Ingredients (Productes de la BD) *
+                  </label>
+                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                    {dbProducts.length} productes disponibles a la teva base de dades
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setTargetIngIndex(null);
+                      setIsScanOpen(true);
+                    }}
+                    className="text-xs h-8 px-2.5 text-zinc-700 dark:text-zinc-300"
+                  >
+                    <ScanLine className="w-3.5 h-3.5 mr-1 text-primary-600" />
+                    📸 Escanejar
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setTargetIngIndex(null);
+                      setIsCreateProductOpen(true);
+                    }}
+                    className="text-xs h-8 px-2.5 text-zinc-700 dark:text-zinc-300"
+                  >
+                    <Plus className="w-3.5 h-3.5 mr-1 text-emerald-600" />
+                    + Nou Producte
+                  </Button>
+                </div>
               </div>
 
-              {manualIngredients.map((ing, i) => (
-                <div key={ing.id} className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    placeholder="Nom ingredient"
-                    value={ing.name}
-                    onChange={(e) => handleManualIngredientChange(i, "name", e.target.value)}
-                    className="flex-1 px-3 py-1.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm"
-                  />
-                  <input
-                    type="number"
-                    placeholder="Qtat"
-                    value={ing.amount}
-                    onChange={(e) => handleManualIngredientChange(i, "amount", Number(e.target.value))}
-                    className="w-20 px-2 py-1.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm"
-                  />
-                  <input
-                    type="text"
-                    placeholder="Unitat"
-                    value={ing.unit}
-                    onChange={(e) => handleManualIngredientChange(i, "unit", e.target.value)}
-                    className="w-16 px-2 py-1.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveManualIngredient(i)}
-                    className="p-1.5 text-zinc-400 hover:text-red-500 transition"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+              {dbProducts.length === 0 && !isLoadingProducts && (
+                <div className="p-4 rounded-xl border border-dashed border-amber-300 dark:border-amber-700/60 bg-amber-50/50 dark:bg-amber-950/20 text-center space-y-2">
+                  <p className="text-xs text-amber-800 dark:text-amber-300 font-medium">
+                    Encara no tens cap producte a la base de dades. Dóna d&apos;alta o escaneja els teus productes primer.
+                  </p>
+                  <div className="flex items-center justify-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="primary"
+                      onClick={() => setIsScanOpen(true)}
+                      className="text-xs"
+                    >
+                      <ScanLine className="w-3.5 h-3.5 mr-1" />
+                      Escanejar Codi de Barres
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setIsCreateProductOpen(true)}
+                      className="text-xs"
+                    >
+                      <Plus className="w-3.5 h-3.5 mr-1" />
+                      Crear Manualment
+                    </Button>
+                  </div>
                 </div>
-              ))}
+              )}
+
+              {/* Rows */}
+              <div className="space-y-2.5">
+                {manualIngredients.map((ing, i) => {
+                  const isLinked = Boolean(ing.productId && dbProducts.some((p) => p.id === ing.productId));
+                  return (
+                    <div
+                      key={ing.id}
+                      className={`p-2.5 rounded-xl border transition flex flex-col sm:flex-row items-stretch sm:items-center gap-2 ${
+                        isLinked
+                          ? "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 shadow-xs"
+                          : "bg-amber-50/60 dark:bg-amber-950/20 border-amber-300 dark:border-amber-800/50"
+                      }`}
+                    >
+                      {/* Product Selector */}
+                      <div className="flex-1 min-w-0">
+                        <select
+                          value={ing.productId || ""}
+                          onChange={(e) => handleSelectProductForIngredient(i, e.target.value)}
+                          className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 rounded-lg text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
+                        >
+                          <option value="">
+                            {dbProducts.length === 0
+                              ? "— Cap producte a la BD —"
+                              : "— Tria un producte de la BD —"}
+                          </option>
+                          <option value="__NEW__">➕ Donar d&apos;alta nou producte a la BD...</option>
+                          <option value="__SCAN__">📸 Escanejar codi de barres nou...</option>
+                          <optgroup label="Productes a la Base de Dades">
+                            {[...dbProducts]
+                              .sort((a, b) => a.name.localeCompare(b.name, "ca"))
+                              .map((p) => (
+                                <option key={p.id} value={p.id}>
+                                  {p.name} {p.brand ? `(${p.brand})` : ""} [{p.defaultUnit || "u."}]
+                                </option>
+                              ))}
+                          </optgroup>
+                        </select>
+                      </div>
+
+                      {/* Quantity and Unit */}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <input
+                          type="number"
+                          placeholder="Qtat"
+                          min="0.1"
+                          step="any"
+                          value={ing.amount}
+                          onChange={(e) =>
+                            handleManualIngredientChange(i, "amount", Number(e.target.value))
+                          }
+                          className="w-20 px-2.5 py-2 bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 rounded-lg text-xs sm:text-sm text-center text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500/20"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Unitat"
+                          value={ing.unit}
+                          onChange={(e) => handleManualIngredientChange(i, "unit", e.target.value)}
+                          className="w-16 px-2 py-2 bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 rounded-lg text-xs sm:text-sm text-center text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500/20"
+                        />
+
+                        {/* Status badge */}
+                        {isLinked ? (
+                          <span className="px-1.5 py-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950/60 rounded border border-emerald-300 dark:border-emerald-800 shrink-0">
+                            ✓ BD
+                          </span>
+                        ) : (
+                          <span className="px-1.5 py-1 text-[10px] font-bold text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-950/60 rounded border border-amber-300 dark:border-amber-800 shrink-0">
+                            Pendent
+                          </span>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveManualIngredient(i)}
+                          className="p-2 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg transition"
+                          title="Eliminar ingredient"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleAddManualIngredient}
+                className="w-full border-dashed text-xs py-2 text-zinc-600 dark:text-zinc-300 hover:text-primary-600 hover:border-primary-400"
+              >
+                <Plus className="w-3.5 h-3.5 mr-1" /> Afegeix un altre ingredient de la BD
+              </Button>
             </div>
 
             {/* Instructions */}
-            <Textarea
-              label="Instruccions de preparació (una línia per a cada pas)"
-              placeholder="1. Renta i talla les verdures...\n2. Salta a la paella 5 minuts...\n3. Serveix calent."
-              value={manualInstructions}
-              onChange={(e) => setManualInstructions(e.target.value)}
-              rows={4}
-            />
+            <div className="pt-2">
+              <Textarea
+                label="Instruccions de preparació (una línia per a cada pas)"
+                placeholder="1. Pela i talla els ingredients...\n2. Salta a la paella amb oli durant 10 minuts...\n3. Rectifica de sal i serveix calent."
+                value={manualInstructions}
+                onChange={(e) => setManualInstructions(e.target.value)}
+                rows={4}
+              />
+            </div>
+
+            {/* Public publication check */}
+            <label className="flex items-start gap-2.5 p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={publishPublicly}
+                onChange={(e) => setPublishPublicly(e.target.checked)}
+                className="mt-0.5 rounded border-zinc-300 text-primary-600 focus:ring-primary-500"
+              />
+              <div className="text-xs">
+                <span className="font-semibold text-zinc-800 dark:text-zinc-200 block">
+                  🌐 Publicar també al Receptari Públic Global
+                </span>
+                <span className="text-zinc-500 dark:text-zinc-400">
+                  Visible per a tothom immediatament com a recepta de la comunitat.
+                </span>
+              </div>
+            </label>
 
             <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2.5 pt-3 border-t border-zinc-100 dark:border-zinc-800">
               <Button type="button" variant="outline" onClick={handleCloseModal} className="w-full sm:w-auto justify-center">
                 Cancel·la
               </Button>
-              <Button type="submit" variant="primary" isLoading={isSaving} className="w-full sm:w-auto justify-center">
+              <Button
+                type="submit"
+                variant="primary"
+                isLoading={isSaving}
+                className="w-full sm:w-auto justify-center bg-gradient-to-r from-primary-600 to-emerald-600 text-white font-semibold shadow-sm"
+              >
+                <Check className="w-4 h-4 mr-1.5" />
                 Desa Recepta Manual
               </Button>
             </div>
@@ -942,5 +1258,24 @@ export const CreateRecipeModal: React.FC<CreateRecipeModalProps> = ({
         )}
       </div>
     </Modal>
-  );
+
+    {/* Submodal for creating product */}
+    <CreateProductModal
+      isOpen={isCreateProductOpen}
+      onClose={() => setIsCreateProductOpen(false)}
+      onProductSaved={handleProductCreatedOrScanned}
+      onOpenScan={() => {
+        setIsCreateProductOpen(false);
+        setIsScanOpen(true);
+      }}
+    />
+
+    {/* Submodal for barcode scanning product */}
+    <ScanBarcodeModal
+      isOpen={isScanOpen}
+      onClose={() => setIsScanOpen(false)}
+      onProductCreated={handleProductCreatedOrScanned}
+    />
+  </>
+);
 };

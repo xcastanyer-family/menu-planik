@@ -52,13 +52,38 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({
     }
 
     setIsLoading(true);
+    const pass = password.trim() || "user123";
+    const cleanName = name.trim();
+    const cleanEmail = email.trim();
+
     const res = LocalStore.addFamilyMember(
       family.id,
-      name.trim(),
-      email.trim(),
-      password.trim() || "user123",
+      cleanName,
+      cleanEmail,
+      pass,
       canModify
     );
+
+    // Sync to Supabase in background
+    fetch("/api/family/members", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        familyId: family.id,
+        name: cleanName,
+        email: cleanEmail,
+        password: pass,
+        canModify,
+      }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.success && data.member?.email) {
+          LocalStore.updateFamilyMember(res.member?.id || "", { email: data.member.email }, family.id);
+        }
+      })
+      .catch((err) => console.warn("Could not sync member to Supabase:", err));
+
     setIsLoading(false);
 
     if (res.success && res.member) {

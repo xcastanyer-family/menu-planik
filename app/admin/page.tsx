@@ -152,13 +152,30 @@ export default function AdminDashboardPage() {
     e.preventDefault();
     if (!managingFamily || !newMemberName.trim()) return;
 
+    const pass = newMemberPassword.trim() || "user123";
+    const cleanName = newMemberName.trim();
+    const cleanEmail = newMemberEmail.trim();
+
     const res = LocalStore.addFamilyMember(
       managingFamily.id,
-      newMemberName.trim(),
-      newMemberEmail.trim(),
-      newMemberPassword.trim() || "user123",
+      cleanName,
+      cleanEmail,
+      pass,
       newMemberCanModify
     );
+
+    // Sync to Supabase in background
+    fetch("/api/family/members", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        familyId: managingFamily.id,
+        name: cleanName,
+        email: cleanEmail,
+        password: pass,
+        canModify: newMemberCanModify,
+      }),
+    }).catch((err) => console.warn("Could not sync member to Supabase:", err));
 
     if (res.success && res.member) {
       const updatedFamily = LocalStore.getFamily(managingFamily.id);

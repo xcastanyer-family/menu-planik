@@ -236,10 +236,48 @@ export const SupabaseAuthService = {
    * Signs in any user (Superadmin, Family Admin, or Regular User)
    */
   async signIn(params: SignInParams): Promise<AuthResponse> {
-    const supabase = createClient();
-    const cleanEmail = params.email.trim().toLowerCase();
+    const cleanId = params.email.trim();
+    const cleanPass = params.password?.trim() || "";
 
-    // 1. If Supabase is connected, attempt Supabase authentication
+    // 1. Try server-side unified authentication API (handles usernames, emails, mobile devices, Supabase)
+    if (typeof fetch !== "undefined") {
+      try {
+        const res = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ identifier: cleanId, password: cleanPass }),
+        });
+
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && json.session) {
+            if (json.family) {
+              LocalStore.saveFamily(json.family);
+            }
+            LocalStore.saveCurrentSession(json.session);
+            return {
+              success: true,
+              message: json.message || `Benvingut/da ${json.session.name}!`,
+              session: json.session,
+            };
+          } else if (json.message) {
+            return { success: false, message: json.message };
+          }
+        } else {
+          const json = await res.json().catch(() => ({}));
+          if (json.message) {
+            return { success: false, message: json.message };
+          }
+        }
+      } catch (e) {
+        console.warn("API login failed, falling back to client auth:", e);
+      }
+    }
+
+    const supabase = createClient();
+    const cleanEmail = cleanId.toLowerCase();
+
+    // 2. Direct Supabase client fallback
     if (supabase && params.password) {
       try {
         const { data, error } = await supabase.auth.signInWithPassword({

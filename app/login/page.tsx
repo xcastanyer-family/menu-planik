@@ -8,10 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import {
   UtensilsCrossed,
-  ShieldCheck,
-  Users,
   LogIn,
-  Crown,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -30,10 +27,6 @@ function LoginFormContent() {
     window.location.href = target;
   };
 
-  const fillCredentials = (email: string, pass: string) => {
-    setLoginEmail(email);
-    setLoginPassword(pass);
-  };
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -145,72 +138,7 @@ function LoginFormContent() {
             </Button>
           </form>
 
-          {/* Quick Demo Accounts */}
-          <div className="pt-4 border-t border-zinc-100 dark:border-zinc-800">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 mb-2.5 text-center">
-              Comptes de Demostració / Rols
-            </p>
-            <div className="grid grid-cols-1 gap-2">
-              <button
-                type="button"
-                onClick={() => fillCredentials("admin@menuplanik.cat", "superadmin123")}
-                className="w-full text-left px-3.5 py-2.5 rounded-xl bg-amber-50/60 dark:bg-amber-950/20 hover:bg-amber-100/70 dark:hover:bg-amber-900/30 border border-amber-200/70 dark:border-amber-900/50 transition text-xs flex items-center justify-between group"
-              >
-                <div>
-                  <div className="font-semibold text-amber-950 dark:text-amber-200 flex items-center gap-1.5">
-                    <Crown className="w-3.5 h-3.5 text-amber-500" />
-                    Superadmin (Global)
-                  </div>
-                  <div className="text-[11px] text-amber-700/80 dark:text-amber-400/80 mt-0.5">
-                    admin@menuplanik.cat • Crea/elimina famílies i productes
-                  </div>
-                </div>
-                <span className="text-[11px] font-medium text-amber-700 dark:text-amber-400 group-hover:underline shrink-0 ml-2">
-                  Emplenar
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => fillCredentials("xavi@menuplanik.cat", "admin123")}
-                className="w-full text-left px-3.5 py-2.5 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/20 hover:bg-emerald-100/70 dark:hover:bg-emerald-900/30 border border-emerald-200/70 dark:border-emerald-900/50 transition text-xs flex items-center justify-between group"
-              >
-                <div>
-                  <div className="font-semibold text-emerald-950 dark:text-emerald-200 flex items-center gap-1.5">
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                    Organitzador Família (Edició)
-                  </div>
-                  <div className="text-[11px] text-emerald-700/80 dark:text-emerald-400/80 mt-0.5">
-                    xavi@menuplanik.cat • Pot donar d'alta i modificar
-                  </div>
-                </div>
-                <span className="text-[11px] font-medium text-emerald-700 dark:text-emerald-400 group-hover:underline shrink-0 ml-2">
-                  Emplenar
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => fillCredentials("julia@menuplanik.cat", "user123")}
-                className="w-full text-left px-3.5 py-2.5 rounded-xl bg-zinc-50 dark:bg-zinc-800/60 hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-zinc-200/70 dark:border-zinc-700/70 transition text-xs flex items-center justify-between group"
-              >
-                <div>
-                  <div className="font-semibold text-zinc-900 dark:text-zinc-200 flex items-center gap-1.5">
-                    <Users className="w-3.5 h-3.5 text-zinc-500" />
-                    Membre Família (Només Consulta)
-                  </div>
-                  <div className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">
-                    julia@menuplanik.cat • Planifica àpats i llista compra
-                  </div>
-                </div>
-                <span className="text-[11px] font-medium text-primary-600 dark:text-primary-400 group-hover:underline shrink-0 ml-2">
-                  Emplenar
-                </span>
-              </button>
-            </div>
-          </div>
-
-          <div className="pt-2 text-center text-xs text-zinc-400 dark:text-zinc-500">
+          <div className="pt-4 border-t border-zinc-100 dark:border-zinc-800 text-center text-xs text-zinc-400 dark:text-zinc-500">
             Per sol·licitar una nova família o canvis de permisos, contacta amb el superadministrador.
           </div>
         </div>

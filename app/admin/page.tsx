@@ -148,36 +148,30 @@ export default function AdminDashboardPage() {
     toast.success(`Família "${newFamilyName}" creada correctament!`);
   };
 
-  const handleAddMemberToFamily = (e: React.FormEvent) => {
+  const handleAddMemberToFamily = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!managingFamily || !newMemberName.trim()) return;
 
-    const email = newMemberEmail.trim() || `${newMemberName.trim().toLowerCase().replace(/\s+/g, ".")}@${managingFamily.code.toLowerCase()}.local`;
-    const password = newMemberPassword.trim() || "user123";
-    const newMember = {
-      id: `m-${Date.now()}`,
-      familyId: managingFamily.id,
-      name: newMemberName.trim(),
-      email,
-      password,
-      role: "user" as const,
-      canModify: newMemberCanModify,
-      joinedAt: new Date().toISOString(),
-      color: "#0284c7",
-    };
+    const res = LocalStore.addFamilyMember(
+      managingFamily.id,
+      newMemberName.trim(),
+      newMemberEmail.trim(),
+      newMemberPassword.trim() || "user123",
+      newMemberCanModify
+    );
 
-    const updatedFamily = {
-      ...managingFamily,
-      members: [...managingFamily.members, newMember],
-    };
-    LocalStore.saveFamily(updatedFamily);
-    setManagingFamily(updatedFamily);
-    setNewMemberName("");
-    setNewMemberEmail("");
-    setNewMemberPassword("user123");
-    setNewMemberCanModify(false);
-    refresh();
-    toast.success(`Membre "${newMember.name}" afegit! Accés: usuari "${newMember.name}", contrasenya "${password}".`);
+    if (res.success && res.member) {
+      const updatedFamily = LocalStore.getFamily(managingFamily.id);
+      setManagingFamily(updatedFamily);
+      setNewMemberName("");
+      setNewMemberEmail("");
+      setNewMemberPassword("user123");
+      setNewMemberCanModify(false);
+      await refresh();
+      toast.success(`Membre "${res.member.name}" afegit! Accés: usuari "${res.member.name}", contrasenya "${res.member.password}".`);
+    } else {
+      toast.error(res.message);
+    }
   };
 
   const handleCopyMemberCredentials = (member: { name: string; email: string; password?: string; role: string; id: string }) => {

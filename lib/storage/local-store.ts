@@ -620,6 +620,64 @@ export const LocalStore = {
     }
   },
 
+  addFamilyMember(
+    familyId: string,
+    name: string,
+    email?: string,
+    password: string = "user123",
+    canModify: boolean = false,
+    role: "user" | "admin" = "user"
+  ): { success: boolean; message: string; member?: FamilyMember } {
+    const current = this.getFamily(familyId);
+    if (!current) {
+      return { success: false, message: "Família no trobada." };
+    }
+
+    const cleanName = name.trim();
+    if (!cleanName) {
+      return { success: false, message: "El nom del membre és obligatori." };
+    }
+
+    const cleanEmail = email?.trim() || `${cleanName.toLowerCase().replace(/\s+/g, ".")}@${current.code.toLowerCase()}.local`;
+    const cleanPassword = password.trim() || "user123";
+
+    // Check if name or email is already taken in this family
+    const existing = current.members.find(
+      (m) => m.name.toLowerCase() === cleanName.toLowerCase() || m.email.toLowerCase() === cleanEmail.toLowerCase()
+    );
+    if (existing) {
+      return {
+        success: false,
+        message: `Ja hi ha un membre anomenat "${cleanName}" o amb el correu "${cleanEmail}" a la família.`,
+      };
+    }
+
+    const colors = ["#0284c7", "#8b5cf6", "#ec4899", "#f59e0b", "#10b981", "#6366f1"];
+    const newMember: FamilyMember = {
+      id: `m-${Date.now()}`,
+      familyId: current.id,
+      name: cleanName,
+      email: cleanEmail,
+      password: cleanPassword,
+      role,
+      canModify,
+      joinedAt: new Date().toISOString(),
+      color: colors[Math.floor(Math.random() * colors.length)],
+    };
+
+    const updated = {
+      ...current,
+      members: [...current.members, newMember],
+    };
+    this.saveFamily(updated);
+
+    return {
+      success: true,
+      message: `Membre "${newMember.name}" afegit correctament a la família.`,
+      member: newMember,
+    };
+  },
+
   removeFamilyMember(memberId: string, familyId?: string) {
     const current = this.getFamily(familyId);
     const updated = {

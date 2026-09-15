@@ -377,8 +377,47 @@ export const SupabaseAuthService = {
       if (res.ok) {
         const json = await res.json();
         if (json.success && json.families && json.families.length > 0) {
-          LocalStore.saveAllFamilies(json.families);
-          return json.families;
+          const localFamilies = LocalStore.getAllFamilies();
+          const merged: Family[] = json.families.map((apiFam: Family) => {
+            const localFam = localFamilies.find((lf) => lf.id === apiFam.id || lf.code === apiFam.code);
+            if (!localFam) return apiFam;
+
+            // Merge members: preserve locally added members and passwords/canModify
+            const memberMap = new Map<string, any>();
+            (localFam.members || []).forEach((m) => memberMap.set(m.id, m));
+            (apiFam.members || []).forEach((m: any) => {
+              const existing = memberMap.get(m.id) || Array.from(memberMap.values()).find((x: any) => x.email === m.email || x.name === m.name);
+              if (existing) {
+                memberMap.set(existing.id, {
+                  ...existing,
+                  ...m,
+                  password: existing.password || m.password || (m.role === "admin" ? "admin123" : "user123"),
+                  canModify: existing.canModify !== undefined ? existing.canModify : m.canModify,
+                });
+              } else {
+                memberMap.set(m.id, {
+                  ...m,
+                  password: m.password || (m.role === "admin" ? "admin123" : "user123"),
+                });
+              }
+            });
+
+            return {
+              ...localFam,
+              ...apiFam,
+              members: Array.from(memberMap.values()),
+            };
+          });
+
+          // Also keep any local-only families that aren't yet in the API
+          for (const lf of localFamilies) {
+            if (!merged.some((m) => m.id === lf.id || m.code === lf.code)) {
+              merged.push(lf);
+            }
+          }
+
+          LocalStore.saveAllFamilies(merged);
+          return merged;
         }
       }
     } catch (e) {

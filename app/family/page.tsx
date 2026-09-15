@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { JoinFamilyModal } from "@/components/family/JoinFamilyModal";
 import { InviteMemberModal } from "@/components/family/InviteMemberModal";
+import { AddMemberModal } from "@/components/family/AddMemberModal";
 import {
   Users,
   KeyRound,
@@ -31,6 +32,7 @@ export default function FamilyPage() {
   // Modals
   const [isJoinOpen, setIsJoinOpen] = useState(false);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
+  const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
 
   const refresh = () => {
     setFamily(LocalStore.getFamily());
@@ -126,13 +128,30 @@ export default function FamilyPage() {
         </div>
 
         <div className="flex items-center gap-2.5 w-full sm:w-auto flex-col sm:flex-row">
-          <Button variant="primary" onClick={() => setIsInviteOpen(true)} className="w-full sm:w-auto justify-center bg-emerald-600 hover:bg-emerald-700 text-white font-semibold">
+          <Button
+            variant="primary"
+            onClick={() => setIsAddMemberOpen(true)}
+            className="w-full sm:w-auto justify-center bg-primary-600 hover:bg-primary-700 text-white font-semibold"
+          >
             <UserPlus className="w-4 h-4 mr-1.5" />
-            Convida Membre
+            Afegeix Membre
           </Button>
 
-          <Button variant="outline" onClick={() => setIsJoinOpen(true)} className="w-full sm:w-auto justify-center">
-            <KeyRound className="w-4 h-4 mr-1.5" />
+          <Button
+            variant="outline"
+            onClick={() => setIsInviteOpen(true)}
+            className="w-full sm:w-auto justify-center"
+          >
+            <MessageSquare className="w-4 h-4 mr-1.5" />
+            Convida per Codi
+          </Button>
+
+          <Button
+            variant="ghost"
+            onClick={() => setIsJoinOpen(true)}
+            className="w-full sm:w-auto justify-center text-xs text-zinc-500"
+          >
+            <KeyRound className="w-3.5 h-3.5 mr-1" />
             Entra amb un altre Codi
           </Button>
         </div>
@@ -204,9 +223,9 @@ export default function FamilyPage() {
             </p>
           </div>
 
-          <Button variant="primary" size="sm" onClick={() => setIsInviteOpen(true)}>
-            <UserPlus className="w-4 h-4" />
-            Afegir
+          <Button variant="primary" size="sm" onClick={() => setIsAddMemberOpen(true)}>
+            <UserPlus className="w-4 h-4 mr-1" />
+            Afegeix Membre
           </Button>
         </div>
 
@@ -357,6 +376,13 @@ export default function FamilyPage() {
       )}
 
       {/* Modals */}
+      <AddMemberModal
+        isOpen={isAddMemberOpen}
+        onClose={() => setIsAddMemberOpen(false)}
+        family={family}
+        onMemberAdded={refresh}
+      />
+
       <JoinFamilyModal
         isOpen={isJoinOpen}
         onClose={() => setIsJoinOpen(false)}

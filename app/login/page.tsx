@@ -61,6 +61,13 @@ function LoginFormContent() {
       return;
     }
 
+    // If local account was matched but password was wrong, abort immediately
+    if (localResult.message.toLowerCase().includes("contrasenya incorrecta")) {
+      setIsLoginLoading(false);
+      toast.error(localResult.message);
+      return;
+    }
+
     // 2. Otherwise try Supabase
     const result = await SupabaseAuthService.signIn({
       email: loginEmail,

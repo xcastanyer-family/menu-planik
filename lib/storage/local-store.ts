@@ -74,11 +74,19 @@ export const LocalStore = {
   },
 
   // --- Auth for Superadmin & Family Organizers ---
-  loginAdmin(email: string, _password?: string): { success: boolean; message: string; session?: UserSession } {
+  loginAdmin(email: string, password?: string): { success: boolean; message: string; session?: UserSession } {
     const cleanEmail = email.trim().toLowerCase();
+    const cleanPass = (password || "").trim();
 
     // 1. Check if Superadmin
-    if (cleanEmail === "admin@menuplanik.cat" || cleanEmail === "superadmin@menuplanik.cat") {
+    if (cleanEmail === "admin@menuplanik.cat" || cleanEmail === "superadmin@menuplanik.cat" || cleanEmail === "superadmin" || cleanEmail === "admin") {
+      if (cleanPass !== "superadmin123") {
+        return {
+          success: false,
+          message: "Contrasenya incorrecta per al compte de Superadministrador.",
+        };
+      }
+
       const superSession: UserSession = {
         ...SUPERUSER_SESSION,
         role: "superadmin",
@@ -99,6 +107,15 @@ export const LocalStore = {
 
     if (targetFamily) {
       const organizerMember = targetFamily.members.find((m) => m.role === "admin") || targetFamily.members[0];
+      const expectedPass = organizerMember?.password || "admin123";
+
+      if (cleanPass !== expectedPass) {
+        return {
+          success: false,
+          message: "Contrasenya incorrecta per al compte d'administrador de família.",
+        };
+      }
+
       const organizerSession: UserSession = {
         memberId: organizerMember?.id || `m-${Date.now()}`,
         familyId: targetFamily.id,
@@ -126,20 +143,34 @@ export const LocalStore = {
 
   signIn(emailOrUsername: string, password?: string): { success: boolean; message: string; session?: UserSession } {
     const cleanId = emailOrUsername.trim().toLowerCase();
+    const cleanPass = (password || "").trim();
 
-    // 1. Check if admin/superadmin
-    const adminRes = this.loginAdmin(cleanId, password);
-    if (adminRes.success) {
-      return adminRes;
+    // 1. Check if superadmin
+    if (cleanId === "admin@menuplanik.cat" || cleanId === "superadmin@menuplanik.cat" || cleanId === "superadmin" || cleanId === "admin") {
+      return this.loginAdmin(cleanId, cleanPass);
     }
 
-    // 2. Check if member of any family by email OR username
+    // 2. Check if admin/organizer of any family by email
     const all = this.getAllFamilies();
+    const targetFamilyAsAdmin = all.find((f) => f.organizerEmail.toLowerCase() === cleanId);
+    if (targetFamilyAsAdmin) {
+      return this.loginAdmin(cleanId, cleanPass);
+    }
+
+    // 3. Check if member of any family by email OR username
     for (const fam of all) {
       const member = fam.members.find(
         (m) => m.email.toLowerCase() === cleanId || m.name.toLowerCase() === cleanId
       );
       if (member) {
+        const expectedPass = member.password || (member.role === "admin" ? "admin123" : "user123");
+        if (cleanPass !== expectedPass) {
+          return {
+            success: false,
+            message: "Contrasenya incorrecta.",
+          };
+        }
+
         const session: UserSession = {
           memberId: member.id,
           familyId: fam.id,

@@ -4,7 +4,6 @@ import React, { useState, useEffect } from "react";
 import { Family, FamilyMember, UserSession } from "@/types";
 import { LocalStore } from "@/lib/storage/local-store";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
 import { Badge } from "@/components/ui/Badge";
 import { JoinFamilyModal } from "@/components/family/JoinFamilyModal";
 import { InviteMemberModal } from "@/components/family/InviteMemberModal";
@@ -18,7 +17,6 @@ import {
   MessageSquare,
   RotateCcw,
   Trash2,
-  Sparkles,
   LogOut,
   UserCheck,
   Home,
@@ -33,12 +31,6 @@ export default function FamilyPage() {
   // Modals
   const [isJoinOpen, setIsJoinOpen] = useState(false);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
-  const [isCreatingNew, setIsCreatingNew] = useState(false);
-
-  // Create new family form
-  const [newFamilyName, setNewFamilyName] = useState("");
-  const [organizerName, setOrganizerName] = useState("");
-  const [organizerEmail, setOrganizerEmail] = useState("");
 
   const refresh = () => {
     setFamily(LocalStore.getFamily());
@@ -78,6 +70,13 @@ export default function FamilyPage() {
     }
   };
 
+  const handleToggleMemberCanModify = (memberId: string, currentVal?: boolean) => {
+    const newVal = !currentVal;
+    LocalStore.updateFamilyMember(memberId, { canModify: newVal }, family.id);
+    refresh();
+    toast.success(`Permís de modificació ${newVal ? "activat" : "desactivat"}.`);
+  };
+
   const handleSwitchSession = (member: FamilyMember) => {
     LocalStore.saveCurrentSession({
       memberId: member.id,
@@ -85,26 +84,12 @@ export default function FamilyPage() {
       name: member.name,
       email: member.email,
       role: member.role,
+      canModify: member.role === "admin" || member.canModify === true,
       familyCode: family.code,
       familyName: family.name,
       isAuthenticated: true,
     });
     toast.success(`Has canviat el teu perfil actiu a: ${member.name}`);
-  };
-
-  const handleCreateFamilySubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newFamilyName.trim() || !organizerName.trim() || !organizerEmail.trim()) {
-      toast.error("Omple tots els camps si us plau.");
-      return;
-    }
-
-    const created = LocalStore.createFamily(newFamilyName.trim(), organizerName.trim(), organizerEmail.trim());
-    toast.success(`Nova família "${created.name}" creada amb èxit!`);
-    setIsCreatingNew(false);
-    setNewFamilyName("");
-    setOrganizerName("");
-    setOrganizerEmail("");
   };
 
   return (
@@ -250,6 +235,32 @@ export default function FamilyPage() {
                       <Badge variant={member.role === "admin" ? "success" : "default"} size="sm">
                         {member.role === "admin" ? "Administrador" : "Membre"}
                       </Badge>
+                      {member.role === "admin" ? (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-medium">
+                          Edició de productes i receptes
+                        </span>
+                      ) : isOrganizer ? (
+                        <button
+                          type="button"
+                          onClick={() => handleToggleMemberCanModify(member.id, member.canModify)}
+                          className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition cursor-pointer border ${
+                            member.canModify
+                              ? "bg-primary-50 dark:bg-primary-950/40 text-primary-700 dark:text-primary-300 border-primary-200 dark:border-primary-800 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200"
+                              : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 border-zinc-200 dark:border-zinc-700 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200"
+                          }`}
+                          title="Fes clic per canviar permís d'edició d'aquest membre"
+                        >
+                          {member.canModify ? "✓ Edició de productes/receptes" : "Només consulta"}
+                        </button>
+                      ) : (
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                          member.canModify
+                            ? "bg-primary-50 dark:bg-primary-950/40 text-primary-700 dark:text-primary-300"
+                            : "bg-zinc-100 dark:bg-zinc-800 text-zinc-400"
+                        }`}>
+                          {member.canModify ? "Edició permesa" : "Només consulta"}
+                        </span>
+                      )}
                     </div>
 
                     <span className="text-xs text-zinc-400 block mt-0.5">
@@ -287,69 +298,31 @@ export default function FamilyPage() {
         </div>
       </div>
 
-      {/* Create New Family Section */}
-      <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 p-6 shadow-sm space-y-4">
-        <div className="flex items-center justify-between">
+      {/* Superadmin Link / Family Info Footer */}
+      {session?.role === "superadmin" ? (
+        <div className="bg-amber-50/70 dark:bg-amber-950/20 rounded-2xl border border-amber-200/80 dark:border-amber-900/40 p-5 flex items-center justify-between">
           <div>
-            <h2 className="text-base font-bold text-zinc-900 dark:text-white flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-emerald-600" />
-              Crear una Nova Família
-            </h2>
-            <p className="text-xs text-zinc-500 mt-0.5">
-              Vols començar una família independent per a una altra llar?
+            <h3 className="text-sm font-bold text-amber-900 dark:text-amber-200">
+              Ets Superadministrador Global
+            </h3>
+            <p className="text-xs text-amber-700/80 dark:text-amber-400/80 mt-0.5">
+              Pots crear noves famílies, gestionar tots els membres i eliminar dades des del panell d'administració.
             </p>
           </div>
-
           <Button
-            variant="outline"
+            variant="primary"
             size="sm"
-            onClick={() => setIsCreatingNew(!isCreatingNew)}
+            onClick={() => window.location.href = "/admin"}
+            className="bg-amber-600 hover:bg-amber-700 text-white text-xs"
           >
-            {isCreatingNew ? "Amaga Formulari" : "Crea Nova Família"}
+            Ves al Panell Global
           </Button>
         </div>
-
-        {isCreatingNew && (
-          <form onSubmit={handleCreateFamilySubmit} className="space-y-4 pt-4 border-t border-zinc-100 dark:border-zinc-800 animate-in fade-in">
-            <Input
-              label="Nom de la Família o Llar *"
-              placeholder="ex. Família Garcia, Pis d'Estudiants Gràcia..."
-              value={newFamilyName}
-              onChange={(e) => setNewFamilyName(e.target.value)}
-              required
-            />
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Input
-                label="Nom de l'Organitzador *"
-                placeholder="ex. Xavi"
-                value={organizerName}
-                onChange={(e) => setOrganizerName(e.target.value)}
-                required
-              />
-
-              <Input
-                label="Correu de l'Organitzador *"
-                type="email"
-                placeholder="xavi@exemple.cat"
-                value={organizerEmail}
-                onChange={(e) => setOrganizerEmail(e.target.value)}
-                required
-              />
-            </div>
-
-            <div className="flex justify-end gap-3 pt-2">
-              <Button type="button" variant="outline" onClick={() => setIsCreatingNew(false)}>
-                Cancel·la
-              </Button>
-              <Button type="submit" variant="primary">
-                <Sparkles className="w-4 h-4" />
-                Crea Família i Genera Codi
-              </Button>
-            </div>
-          </form>
-        )}
-      </div>
+      ) : (
+        <div className="text-center text-xs text-zinc-400 dark:text-zinc-500 py-2">
+          La creació o eliminació de noves famílies està restringida al Superadministrador.
+        </div>
+      )}
 
       {/* Modals */}
       <JoinFamilyModal

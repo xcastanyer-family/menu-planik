@@ -383,8 +383,6 @@ function generateFallbackPlan(params: {
   notes?: string;
   recipes?: Recipe[];
 }): WeeklyMealPlan {
-  const days: DayOfWeek[] = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
-
   // CRITICAL REQUIREMENT: "Les receptes manuals/senzilles seran les úniques que conformaran el menú setmanal."
   // Filter out any complex recipes: they are punctual/occasional and must never be in the weekly meal plan.
   const eligibleCatalog = (params.recipes || []).filter(
@@ -454,6 +452,7 @@ function generateFallbackPlan(params: {
     (r) => !r.tags?.some((t) => /esmorzar|desayuno|breakfast/i.test(t))
   );
 
+  const days: DayOfWeek[] = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
   const slots: MealSlot[] = [];
   let mainIndex = 0;
 

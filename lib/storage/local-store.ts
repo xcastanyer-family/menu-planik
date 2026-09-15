@@ -81,6 +81,8 @@ export const LocalStore = {
     if (cleanEmail === "admin@menuplanik.cat" || cleanEmail === "superadmin@menuplanik.cat") {
       const superSession: UserSession = {
         ...SUPERUSER_SESSION,
+        role: "superadmin",
+        canModify: true,
         isAuthenticated: true,
       };
       this.saveCurrentSession(superSession);
@@ -103,6 +105,7 @@ export const LocalStore = {
         name: targetFamily.organizerName,
         email: targetFamily.organizerEmail,
         role: "admin",
+        canModify: true,
         familyCode: targetFamily.code,
         familyName: targetFamily.name,
         isAuthenticated: true,
@@ -117,7 +120,7 @@ export const LocalStore = {
 
     return {
       success: false,
-      message: `No s'ha trobat cap compte d'administrador amb el correu "${email}". Si vols crear una nova família, fes servir la pestanya "Registra nova família".`,
+      message: `No s'ha trobat cap compte d'administrador amb el correu "${email}". Si vols crear una nova família, sol·licita-ho a un superadministrador.`,
     };
   },
 
@@ -143,6 +146,7 @@ export const LocalStore = {
           name: member.name,
           email: member.email,
           role: member.role,
+          canModify: member.role === "admin" || member.canModify === true,
           status: "active",
           familyCode: fam.code,
           familyName: fam.name,
@@ -224,13 +228,15 @@ export const LocalStore = {
 
     if (!member) {
       const colors = ["#0284c7", "#8b5cf6", "#ec4899", "#f59e0b", "#10b981"];
+      const isFirstAdmin = targetFamily.members.length === 0;
       member = {
         id: `m-${Date.now()}`,
         familyId: targetFamily.id,
         name: cleanUser,
         email: email,
         password: params.password,
-        role: targetFamily.members.length === 0 ? "admin" : "user",
+        role: isFirstAdmin ? "admin" : "user",
+        canModify: isFirstAdmin,
         joinedAt: new Date().toISOString(),
         color: colors[Math.floor(Math.random() * colors.length)],
       };
@@ -248,6 +254,7 @@ export const LocalStore = {
       name: member.name,
       email: member.email,
       role: member.role,
+      canModify: member.role === "admin" || member.canModify === true,
       status: "active",
       familyCode: targetFamily.code,
       familyName: targetFamily.name,
@@ -425,7 +432,7 @@ export const LocalStore = {
     this.saveAllFamilies(updated);
   },
 
-  createFamily(name: string, organizerName: string, organizerEmail: string, autoApprove: boolean = true, customCode?: string): Family {
+  createFamily(name: string, organizerName: string, organizerEmail: string, autoApprove: boolean = true, customCode?: string, setActiveSession: boolean = true): Family {
     const familyCode = customCode?.trim().toUpperCase() || `FAM-${Math.floor(1000 + Math.random() * 9000)}`;
     const familyId = `fam-${Date.now()}`;
     const organizerMember: FamilyMember = {
@@ -434,6 +441,7 @@ export const LocalStore = {
       name: organizerName,
       email: organizerEmail,
       role: "admin",
+      canModify: true,
       joinedAt: new Date().toISOString(),
       color: "#16a34a",
     };
@@ -453,18 +461,21 @@ export const LocalStore = {
 
     this.saveFamily(newFamily);
 
-    // Set active session for the creator (Admin authenticated)
-    this.saveCurrentSession({
-      memberId: organizerMember.id,
-      familyId: newFamily.id,
-      name: organizerName,
-      email: organizerEmail,
-      role: "admin",
-      status: "active",
-      familyCode,
-      familyName: name,
-      isAuthenticated: true,
-    });
+    // Set active session for the creator (only if requested, e.g. not when superadmin creates it)
+    if (setActiveSession) {
+      this.saveCurrentSession({
+        memberId: organizerMember.id,
+        familyId: newFamily.id,
+        name: organizerName,
+        email: organizerEmail,
+        role: "admin",
+        canModify: true,
+        status: "active",
+        familyCode,
+        familyName: name,
+        isAuthenticated: true,
+      });
+    }
 
     return newFamily;
   },
@@ -516,6 +527,7 @@ export const LocalStore = {
         name: name.trim(),
         email: email.trim().toLowerCase(),
         role: "user",
+        canModify: false,
         joinedAt: new Date().toISOString(),
         color: colors[Math.floor(Math.random() * colors.length)],
       };
@@ -531,6 +543,7 @@ export const LocalStore = {
       name: member.name,
       email: member.email,
       role: member.role,
+      canModify: member.role === "admin" || member.canModify === true,
       status: "active",
       familyCode: targetFamily.code,
       familyName: targetFamily.name,
@@ -555,6 +568,25 @@ export const LocalStore = {
       this.saveCurrentSession({ ...session, familyCode: newCode });
     }
     return newCode;
+  },
+
+  updateFamilyMember(memberId: string, updates: Partial<FamilyMember>, familyId?: string) {
+    const current = this.getFamily(familyId);
+    const updated = {
+      ...current,
+      members: current.members.map((m) => (m.id === memberId ? { ...m, ...updates } : m)),
+    };
+    this.saveFamily(updated);
+
+    // If current session is this member, update session too
+    const session = this.getCurrentSession();
+    if (session && session.memberId === memberId) {
+      this.saveCurrentSession({
+        ...session,
+        role: updates.role ?? session.role,
+        canModify: updates.canModify !== undefined ? updates.canModify : (updates.role === "admin" ? true : session.canModify),
+      });
+    }
   },
 
   removeFamilyMember(memberId: string, familyId?: string) {

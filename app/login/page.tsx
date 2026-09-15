@@ -10,54 +10,29 @@ import {
   UtensilsCrossed,
   ShieldCheck,
   Users,
-  KeyRound,
   LogIn,
   Crown,
-  Sparkles,
-  Lock,
-  Mail,
-  UserPlus,
-  AlertTriangle,
-  Clock,
 } from "lucide-react";
 import { toast } from "sonner";
-import Link from "next/link";
 
 function LoginFormContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectPath = searchParams.get("redirect") || "";
 
-  const [activeTab, setActiveTab] = useState<"login" | "register-user" | "register-admin">("login");
-
   // Sign In state
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [isLoginLoading, setIsLoginLoading] = useState(false);
-
-  // User Sign Up state
-  const [userFullName, setUserFullName] = useState("");
-  const [userEmail, setUserEmail] = useState("");
-  const [userPassword, setUserPassword] = useState("");
-  const [userFamilyCode, setUserFamilyCode] = useState("");
-  const [isUserLoading, setIsUserLoading] = useState(false);
-
-  // Admin Sign Up state
-  const [adminFullName, setAdminFullName] = useState("");
-  const [adminEmail, setAdminEmail] = useState("");
-  const [adminPassword, setAdminPassword] = useState("");
-  const [adminFamilyName, setAdminFamilyName] = useState("");
-  const [adminFamilyCode, setAdminFamilyCode] = useState("");
-  const [isAdminLoading, setIsAdminLoading] = useState(false);
 
   const navigateAfterAuth = (defaultPath: string) => {
     const target = redirectPath || defaultPath;
     window.location.href = target;
   };
 
-  const fillEmail = (email: string) => {
+  const fillCredentials = (email: string, pass: string) => {
     setLoginEmail(email);
-    setLoginPassword("");
+    setLoginPassword(pass);
   };
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
@@ -105,314 +80,133 @@ function LoginFormContent() {
     }
   };
 
-  const handleUserSignUpSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!userFamilyCode.trim()) {
-      toast.error("Introdueix el codi de família.");
-      return;
-    }
-    if (!userFullName.trim()) {
-      toast.error("Introdueix el teu usuari o nom.");
-      return;
-    }
-    if (!userPassword.trim()) {
-      toast.error("Introdueix la contrasenya.");
-      return;
-    }
-
-    setIsUserLoading(true);
-    // Direct and simple user creation without Supabase validation
-    const result = LocalStore.signUpSimpleUser({
-      familyCode: userFamilyCode.trim(),
-      username: userFullName.trim(),
-      password: userPassword.trim(),
-    });
-    setIsUserLoading(false);
-
-    if (result.success) {
-      toast.success(result.message);
-      navigateAfterAuth("/planner");
-    } else {
-      toast.error(result.message);
-    }
-  };
-
-  const handleAdminSignUpSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!adminFullName.trim() || !adminEmail.trim() || !adminPassword.trim() || !adminFamilyName.trim()) {
-      toast.error("Omple tots els camps obligatoris.");
-      return;
-    }
-
-    setIsAdminLoading(true);
-    const result = await SupabaseAuthService.signUpAdmin({
-      email: adminEmail,
-      password: adminPassword,
-      fullName: adminFullName,
-      familyName: adminFamilyName,
-      familyCode: adminFamilyCode.trim() || undefined,
-    });
-    setIsAdminLoading(false);
-
-    if (result.success) {
-      toast.success(result.message);
-      navigateAfterAuth("/planner");
-    } else {
-      toast.error(result.message);
-    }
-  };
-
   return (
     <div className="min-h-[80vh] flex flex-col justify-center items-center py-8 px-4">
       {/* Brand Header */}
       <div className="text-center mb-6">
-        <div className="w-12 h-12 mx-auto rounded-2xl bg-gradient-to-tr from-primary-600 to-emerald-400 flex items-center justify-center text-white shadow-md shadow-primary-500/20 mb-3">
-          <UtensilsCrossed className="w-6 h-6" />
+        <div className="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-tr from-primary-600 to-emerald-400 flex items-center justify-center text-white shadow-lg shadow-primary-500/20 mb-3">
+          <UtensilsCrossed className="w-7 h-7" />
         </div>
         <h1 className="text-2xl font-bold text-zinc-900 dark:text-white tracking-tight">
           Menu<span className="text-primary-600 dark:text-primary-400">Planik</span>
         </h1>
+        <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+          Planificació de menús, rebost i compra col·laborativa
+        </p>
       </div>
 
       {/* Main Auth Card */}
       <div className="w-full max-w-md bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 shadow-xl overflow-hidden">
-        {/* Tab Headers */}
-        <div className="grid grid-cols-3 p-1.5 bg-zinc-100 dark:bg-zinc-800/80 border-b border-zinc-200 dark:border-zinc-800">
-          <button
-            onClick={() => setActiveTab("login")}
-            className={`py-2 rounded-xl text-xs font-semibold transition ${
-              activeTab === "login"
-                ? "bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white shadow-sm"
-                : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
-            }`}
-          >
-            Inicia Sessió
-          </button>
-
-          <button
-            onClick={() => setActiveTab("register-user")}
-            className={`py-2 rounded-xl text-xs font-semibold transition ${
-              activeTab === "register-user"
-                ? "bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white shadow-sm"
-                : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
-            }`}
-          >
-            Uneix-te a Família
-          </button>
-
-          <button
-            onClick={() => setActiveTab("register-admin")}
-            className={`py-2 rounded-xl text-xs font-semibold transition ${
-              activeTab === "register-admin"
-                ? "bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white shadow-sm"
-                : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
-            }`}
-          >
-            Crea Família
-          </button>
-        </div>
-
-        {/* Tab 1: Inicia Sessió */}
-        {activeTab === "login" && (
-          <div className="p-6 space-y-4">
-            <form onSubmit={handleLoginSubmit} className="space-y-4">
-              <Input
-                label="Usuari o Correu Electrònic"
-                type="text"
-                placeholder="usuari o correu@exemple.cat"
-                value={loginEmail}
-                onChange={(e) => setLoginEmail(e.target.value)}
-                required
-              />
-
-              <Input
-                label="Contrasenya"
-                type="password"
-                placeholder="••••••••"
-                value={loginPassword}
-                onChange={(e) => setLoginPassword(e.target.value)}
-                required
-              />
-
-              <Button
-                type="submit"
-                variant="primary"
-                isLoading={isLoginLoading}
-                className="w-full"
-              >
-                <LogIn className="w-4 h-4 mr-2" />
-                Inicia Sessió
-              </Button>
-            </form>
-
-            {/* Quick Demo Access */}
-            <div className="pt-3 border-t border-zinc-100 dark:border-zinc-800">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 mb-2 text-center">
-                Comptes de Demostració
-              </p>
-              <div className="grid grid-cols-1 gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => fillEmail("xavi@menuplanik.cat")}
-                  className="w-full text-left px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/60 hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-zinc-200/60 dark:border-zinc-700/60 transition text-xs flex items-center justify-between"
-                >
-                  <div>
-                    <span className="font-semibold text-zinc-800 dark:text-zinc-200">Admin Família</span>
-                    <span className="text-[10px] text-zinc-400 ml-1.5">(Xavi)</span>
-                    <div className="text-[10px] text-zinc-400">xavi@menuplanik.cat • Clau: admin123</div>
-                  </div>
-                  <span className="text-[10px] font-medium text-primary-600 dark:text-primary-400">Emplenar correu</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => fillEmail("julia@menuplanik.cat")}
-                  className="w-full text-left px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/60 hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-zinc-200/60 dark:border-zinc-700/60 transition text-xs flex items-center justify-between"
-                >
-                  <div>
-                    <span className="font-semibold text-zinc-800 dark:text-zinc-200">Membre Família</span>
-                    <span className="text-[10px] text-zinc-400 ml-1.5">(Júlia)</span>
-                    <div className="text-[10px] text-zinc-400">julia@menuplanik.cat • Clau: user123</div>
-                  </div>
-                  <span className="text-[10px] font-medium text-primary-600 dark:text-primary-400">Emplenar correu</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => fillEmail("admin@menuplanik.cat")}
-                  className="w-full text-left px-3 py-2 rounded-xl bg-amber-50/60 dark:bg-amber-950/20 hover:bg-amber-100/60 dark:hover:bg-amber-900/30 border border-amber-200/60 dark:border-amber-900/40 transition text-xs flex items-center justify-between"
-                >
-                  <div>
-                    <span className="font-semibold text-amber-900 dark:text-amber-200 flex items-center gap-1">
-                      <Crown className="w-3 h-3 text-amber-500" /> Superadmin
-                    </span>
-                    <div className="text-[10px] text-amber-600/80 dark:text-amber-400/80">admin@menuplanik.cat • Clau: superadmin123</div>
-                  </div>
-                  <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400">Emplenar correu</span>
-                </button>
-              </div>
-            </div>
+        <div className="p-6 space-y-5">
+          <div className="border-b border-zinc-100 dark:border-zinc-800 pb-3">
+            <h2 className="text-base font-semibold text-zinc-900 dark:text-white flex items-center gap-2">
+              <LogIn className="w-4 h-4 text-primary-600 dark:text-primary-400" />
+              Inici de Sessió
+            </h2>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+              Accedeix amb les teves credencials de família o superadministrador.
+            </p>
           </div>
-        )}
 
-        {/* Tab 2: Nou Usuari amb Codi de Família */}
-        {activeTab === "register-user" && (
-          <div className="p-6 space-y-4">
-            <div className="text-xs text-zinc-500 dark:text-zinc-400 pb-1">
-              Uneix-te a la teva família per compartir el menú setmanal, el rebost i la llista de la compra.
-            </div>
-            <form onSubmit={handleUserSignUpSubmit} className="space-y-4">
-              <div>
-                <Input
-                  label="Codi de Família *"
-                  placeholder="ex. CAS-BAR o FAM-7492"
-                  value={userFamilyCode}
-                  onChange={(e) => setUserFamilyCode(e.target.value.toUpperCase())}
-                  required
-                />
-                <div className="flex items-center justify-between text-[11px] text-zinc-400 mt-1">
-                  <span>Exemples actius: <strong className="text-zinc-600 dark:text-zinc-300 font-mono">CAS-BAR</strong>, <strong className="text-zinc-600 dark:text-zinc-300 font-mono">FAM-7492</strong></span>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab("register-admin")}
-                    className="text-primary-600 dark:text-primary-400 hover:underline font-medium"
-                  >
-                    No en tens? Crea'n una
-                  </button>
+          <form onSubmit={handleLoginSubmit} className="space-y-4">
+            <Input
+              label="Usuari o Correu Electrònic"
+              type="text"
+              placeholder="ex. xavi@menuplanik.cat o Xavi"
+              value={loginEmail}
+              onChange={(e) => setLoginEmail(e.target.value)}
+              required
+            />
+
+            <Input
+              label="Contrasenya"
+              type="password"
+              placeholder="••••••••"
+              value={loginPassword}
+              onChange={(e) => setLoginPassword(e.target.value)}
+              required
+            />
+
+            <Button
+              type="submit"
+              variant="primary"
+              isLoading={isLoginLoading}
+              className="w-full py-2.5 font-medium"
+            >
+              <LogIn className="w-4 h-4 mr-2" />
+              Entra a MenuPlanik
+            </Button>
+          </form>
+
+          {/* Quick Demo Accounts */}
+          <div className="pt-4 border-t border-zinc-100 dark:border-zinc-800">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 mb-2.5 text-center">
+              Comptes de Demostració / Rols
+            </p>
+            <div className="grid grid-cols-1 gap-2">
+              <button
+                type="button"
+                onClick={() => fillCredentials("admin@menuplanik.cat", "superadmin123")}
+                className="w-full text-left px-3.5 py-2.5 rounded-xl bg-amber-50/60 dark:bg-amber-950/20 hover:bg-amber-100/70 dark:hover:bg-amber-900/30 border border-amber-200/70 dark:border-amber-900/50 transition text-xs flex items-center justify-between group"
+              >
+                <div>
+                  <div className="font-semibold text-amber-950 dark:text-amber-200 flex items-center gap-1.5">
+                    <Crown className="w-3.5 h-3.5 text-amber-500" />
+                    Superadmin (Global)
+                  </div>
+                  <div className="text-[11px] text-amber-700/80 dark:text-amber-400/80 mt-0.5">
+                    admin@menuplanik.cat • Crea/elimina famílies i productes
+                  </div>
                 </div>
-              </div>
+                <span className="text-[11px] font-medium text-amber-700 dark:text-amber-400 group-hover:underline shrink-0 ml-2">
+                  Emplenar
+                </span>
+              </button>
 
-              <Input
-                label="Usuari o Nom *"
-                placeholder="El teu nom o usuari"
-                value={userFullName}
-                onChange={(e) => setUserFullName(e.target.value)}
-                required
-              />
-
-              <Input
-                label="Contrasenya *"
-                type="password"
-                placeholder="••••••••"
-                value={userPassword}
-                onChange={(e) => setUserPassword(e.target.value)}
-                required
-              />
-
-              <Button
-                type="submit"
-                variant="primary"
-                isLoading={isUserLoading}
-                className="w-full"
+              <button
+                type="button"
+                onClick={() => fillCredentials("xavi@menuplanik.cat", "admin123")}
+                className="w-full text-left px-3.5 py-2.5 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/20 hover:bg-emerald-100/70 dark:hover:bg-emerald-900/30 border border-emerald-200/70 dark:border-emerald-900/50 transition text-xs flex items-center justify-between group"
               >
-                <UserPlus className="w-4 h-4 mr-2" />
-                Crea Usuari i Entra
-              </Button>
-            </form>
-          </div>
-        )}
+                <div>
+                  <div className="font-semibold text-emerald-950 dark:text-emerald-200 flex items-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                    Organitzador Família (Edició)
+                  </div>
+                  <div className="text-[11px] text-emerald-700/80 dark:text-emerald-400/80 mt-0.5">
+                    xavi@menuplanik.cat • Pot donar d'alta i modificar
+                  </div>
+                </div>
+                <span className="text-[11px] font-medium text-emerald-700 dark:text-emerald-400 group-hover:underline shrink-0 ml-2">
+                  Emplenar
+                </span>
+              </button>
 
-        {/* Tab 3: Nou Admin / Crea Família */}
-        {activeTab === "register-admin" && (
-          <div className="p-6 space-y-4">
-            <div className="text-xs text-zinc-500 dark:text-zinc-400 pb-1">
-              Crea la teva pròpia família per començar a organitzar els àpats i convidar els teus familiars.
+              <button
+                type="button"
+                onClick={() => fillCredentials("julia@menuplanik.cat", "user123")}
+                className="w-full text-left px-3.5 py-2.5 rounded-xl bg-zinc-50 dark:bg-zinc-800/60 hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-zinc-200/70 dark:border-zinc-700/70 transition text-xs flex items-center justify-between group"
+              >
+                <div>
+                  <div className="font-semibold text-zinc-900 dark:text-zinc-200 flex items-center gap-1.5">
+                    <Users className="w-3.5 h-3.5 text-zinc-500" />
+                    Membre Família (Només Consulta)
+                  </div>
+                  <div className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">
+                    julia@menuplanik.cat • Planifica àpats i llista compra
+                  </div>
+                </div>
+                <span className="text-[11px] font-medium text-primary-600 dark:text-primary-400 group-hover:underline shrink-0 ml-2">
+                  Emplenar
+                </span>
+              </button>
             </div>
-            <form onSubmit={handleAdminSignUpSubmit} className="space-y-4">
-              <Input
-                label="Nom de la Família *"
-                placeholder="ex. Família Castanyer, Pis de Gràcia..."
-                value={adminFamilyName}
-                onChange={(e) => setAdminFamilyName(e.target.value)}
-                required
-              />
-
-              <Input
-                label="Codi de Família Personalitzat (Opcional)"
-                placeholder="ex. CAS-BAR (o buit per auto-generar)"
-                value={adminFamilyCode}
-                onChange={(e) => setAdminFamilyCode(e.target.value.toUpperCase())}
-                helperText="Codi curt que faran servir els teus familiars per entrar"
-              />
-
-              <Input
-                label="Nom de l'Administrador *"
-                placeholder="El teu nom"
-                value={adminFullName}
-                onChange={(e) => setAdminFullName(e.target.value)}
-                required
-              />
-
-              <Input
-                label="Correu Electrònic *"
-                type="email"
-                placeholder="el-teu-correu@exemple.cat"
-                value={adminEmail}
-                onChange={(e) => setAdminEmail(e.target.value)}
-                required
-              />
-
-              <Input
-                label="Contrasenya *"
-                type="password"
-                placeholder="••••••••"
-                value={adminPassword}
-                onChange={(e) => setAdminPassword(e.target.value)}
-                required
-              />
-
-              <Button
-                type="submit"
-                variant="primary"
-                isLoading={isAdminLoading}
-                className="w-full"
-              >
-                <ShieldCheck className="w-4 h-4 mr-2" />
-                Crea la Família i Comença
-              </Button>
-            </form>
           </div>
-        )}
+
+          <div className="pt-2 text-center text-xs text-zinc-400 dark:text-zinc-500">
+            Per sol·licitar una nova família o canvis de permisos, contacta amb el superadministrador.
+          </div>
+        </div>
       </div>
     </div>
   );

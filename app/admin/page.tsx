@@ -28,6 +28,11 @@ import {
   LogOut,
   LogIn,
   Trash2,
+  Plus,
+  UserPlus,
+  UserMinus,
+  Shield,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { SupabaseAuthService } from "@/lib/supabase/auth";
@@ -40,6 +45,19 @@ export default function AdminDashboardPage() {
   const [activeTab, setActiveTab] = useState<"pending-families" | "pending-recipes" | "all-families" | "all-recipes">("pending-families");
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Create Family Form Modal
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [newFamilyName, setNewFamilyName] = useState("");
+  const [newFamilyCode, setNewFamilyCode] = useState("");
+  const [newOrganizerName, setNewOrganizerName] = useState("");
+  const [newOrganizerEmail, setNewOrganizerEmail] = useState("");
+
+  // Manage Family Members Modal
+  const [managingFamily, setManagingFamily] = useState<Family | null>(null);
+  const [newMemberName, setNewMemberName] = useState("");
+  const [newMemberEmail, setNewMemberEmail] = useState("");
+  const [newMemberCanModify, setNewMemberCanModify] = useState(false);
 
   const refresh = async () => {
     setSession(LocalStore.getCurrentSession());
@@ -98,6 +116,81 @@ export default function AdminDashboardPage() {
     if (confirmText === "ELIMINAR") {
       await SupabaseAuthService.deleteSuperadminAccount();
       toast.success("Compte de Superadministrador eliminat.");
+    }
+  };
+
+  const handleCreateFamilySubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newFamilyName.trim() || !newOrganizerName.trim() || !newOrganizerEmail.trim()) {
+      toast.error("Omple tots els camps obligatoris.");
+      return;
+    }
+
+    LocalStore.createFamily(
+      newFamilyName.trim(),
+      newOrganizerName.trim(),
+      newOrganizerEmail.trim().toLowerCase(),
+      true,
+      newFamilyCode.trim() || undefined,
+      false // do not overwrite active superadmin session
+    );
+
+    setIsCreateModalOpen(false);
+    setNewFamilyName("");
+    setNewFamilyCode("");
+    setNewOrganizerName("");
+    setNewOrganizerEmail("");
+    refresh();
+    toast.success(`Família "${newFamilyName}" creada correctament!`);
+  };
+
+  const handleAddMemberToFamily = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!managingFamily || !newMemberName.trim()) return;
+
+    const email = newMemberEmail.trim() || `${newMemberName.trim().toLowerCase().replace(/\s+/g, ".")}@${managingFamily.code.toLowerCase()}.local`;
+    const newMember = {
+      id: `m-${Date.now()}`,
+      familyId: managingFamily.id,
+      name: newMemberName.trim(),
+      email,
+      role: "user" as const,
+      canModify: newMemberCanModify,
+      joinedAt: new Date().toISOString(),
+      color: "#0284c7",
+    };
+
+    const updatedFamily = {
+      ...managingFamily,
+      members: [...managingFamily.members, newMember],
+    };
+    LocalStore.saveFamily(updatedFamily);
+    setManagingFamily(updatedFamily);
+    setNewMemberName("");
+    setNewMemberEmail("");
+    setNewMemberCanModify(false);
+    refresh();
+    toast.success(`Membre "${newMember.name}" afegit a la família.`);
+  };
+
+  const handleToggleMemberCanModify = (memberId: string, currentVal?: boolean) => {
+    if (!managingFamily) return;
+    const newVal = !currentVal;
+    LocalStore.updateFamilyMember(memberId, { canModify: newVal }, managingFamily.id);
+    const updatedFamily = LocalStore.getFamily(managingFamily.id);
+    setManagingFamily(updatedFamily);
+    refresh();
+    toast.success(`Permís de modificació ${newVal ? "activat" : "desactivat"}.`);
+  };
+
+  const handleRemoveMember = (memberId: string, memberName: string) => {
+    if (!managingFamily) return;
+    if (confirm(`Vols treure el membre "${memberName}" de la família?`)) {
+      LocalStore.removeFamilyMember(memberId, managingFamily.id);
+      const updatedFamily = LocalStore.getFamily(managingFamily.id);
+      setManagingFamily(updatedFamily);
+      refresh();
+      toast.success(`Membre "${memberName}" eliminat de la família.`);
     }
   };
 
@@ -603,19 +696,30 @@ export default function AdminDashboardPage() {
                 Registre Global de Famílies ({families.length})
               </h2>
               <p className="text-xs text-zinc-500 mt-0.5">
-                Només el Superadministrador té visibilitat d'aquest registre. Cada família només pot veure el seu propi espai.
+                Com a Superadministrador, ets l'únic amb permisos per crear noves famílies, eliminar-les i gestionar els seus membres.
               </p>
             </div>
 
-            <div className="relative w-full sm:w-64">
-              <Search className="w-4 h-4 absolute left-3 top-2.5 text-zinc-400" />
-              <input
-                type="text"
-                placeholder="Cerca família o email..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs"
-              />
+            <div className="flex items-center gap-2.5 w-full sm:w-auto">
+              <div className="relative flex-1 sm:w-60">
+                <Search className="w-4 h-4 absolute left-3 top-2.5 text-zinc-400" />
+                <input
+                  type="text"
+                  placeholder="Cerca família o email..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs"
+                />
+              </div>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => setIsCreateModalOpen(true)}
+                className="text-xs whitespace-nowrap bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+              >
+                <Plus className="w-4 h-4 mr-1.5" />
+                Nova Família
+              </Button>
             </div>
           </div>
 
@@ -669,12 +773,29 @@ export default function AdminDashboardPage() {
                         </Badge>
                       </td>
                       <td className="p-3.5">
-                        <span className="font-semibold">{fam.members.length} membres</span>
+                        <button
+                          onClick={() => setManagingFamily(fam)}
+                          className="font-semibold text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1 text-xs"
+                          title="Gestionar membres d'aquesta família"
+                        >
+                          <Users className="w-3.5 h-3.5" />
+                          {fam.members.length} membres
+                        </button>
                       </td>
                       <td className="p-3.5 text-zinc-400">
                         {new Date(fam.createdAt).toLocaleDateString("ca-ES")}
                       </td>
                       <td className="p-3.5 text-right space-x-1.5">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setManagingFamily(fam)}
+                          className="text-[11px] py-1 px-2.5 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                          title="Gestionar membres i permisos"
+                        >
+                          <UserPlus className="w-3.5 h-3.5 mr-1" />
+                          Membres
+                        </Button>
                         {fam.status === "pending" && (
                           <Button
                             variant="primary"
@@ -850,6 +971,248 @@ export default function AdminDashboardPage() {
         isOpen={!!selectedRecipe}
         onClose={() => setSelectedRecipe(null)}
       />
+
+      {/* Modal 1: Crear Nova Família (Exclusiu Superadmin) */}
+      {isCreateModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-2xl max-w-md w-full p-6 space-y-4 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-3">
+              <h3 className="text-base font-bold text-zinc-900 dark:text-white flex items-center gap-2">
+                <Users className="w-5 h-5 text-emerald-600" />
+                Crear Nova Família
+              </h3>
+              <button
+                onClick={() => setIsCreateModalOpen(false)}
+                className="p-1 rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateFamilySubmit} className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                  Nom de la Família *
+                </label>
+                <input
+                  type="text"
+                  placeholder="ex. Família Garcia"
+                  value={newFamilyName}
+                  onChange={(e) => setNewFamilyName(e.target.value)}
+                  className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                  Codi d'Accés Personalitzat (Opcional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="ex. GARCIA (o buit per auto-generar FAM-XXXX)"
+                  value={newFamilyCode}
+                  onChange={(e) => setNewFamilyCode(e.target.value.toUpperCase())}
+                  className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs uppercase"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                  Nom de l'Organitzador/a *
+                </label>
+                <input
+                  type="text"
+                  placeholder="ex. Maria Garcia"
+                  value={newOrganizerName}
+                  onChange={(e) => setNewOrganizerName(e.target.value)}
+                  className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                  Correu Electrònic de l'Organitzador/a *
+                </label>
+                <input
+                  type="email"
+                  placeholder="ex. maria@exemple.cat"
+                  value={newOrganizerEmail}
+                  onChange={(e) => setNewOrganizerEmail(e.target.value)}
+                  className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 rounded-xl text-xs"
+                  required
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsCreateModalOpen(false)}
+                >
+                  Cancel·la
+                </Button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="sm"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                >
+                  <Plus className="w-4 h-4 mr-1.5" />
+                  Crea Família
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal 2: Gestió de Membres de la Família */}
+      {managingFamily && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-2xl max-w-xl w-full p-6 space-y-5 animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-zinc-900 dark:text-white flex items-center gap-2">
+                  <Users className="w-5 h-5 text-primary-600" />
+                  Membres de {managingFamily.name}
+                </h3>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  Codi d'accés: <strong className="font-mono text-zinc-700 dark:text-zinc-200">{managingFamily.code}</strong> • {managingFamily.members.length} membres
+                </p>
+              </div>
+              <button
+                onClick={() => setManagingFamily(null)}
+                className="p-1 rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Formulari per afegir membre */}
+            <form onSubmit={handleAddMemberToFamily} className="bg-zinc-50 dark:bg-zinc-800/40 p-3.5 rounded-xl border border-zinc-200/80 dark:border-zinc-700/80 space-y-3">
+              <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5">
+                <UserPlus className="w-3.5 h-3.5 text-primary-600" />
+                Afegeix un nou membre a la família
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  placeholder="Nom o usuari *"
+                  value={newMemberName}
+                  onChange={(e) => setNewMemberName(e.target.value)}
+                  className="px-3 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-xs"
+                  required
+                />
+                <input
+                  type="email"
+                  placeholder="Correu electrònic (opcional)"
+                  value={newMemberEmail}
+                  onChange={(e) => setNewMemberEmail(e.target.value)}
+                  className="px-3 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-xs"
+                />
+              </div>
+
+              <div className="flex items-center justify-between pt-1">
+                <label className="flex items-center gap-2 cursor-pointer text-xs text-zinc-600 dark:text-zinc-300">
+                  <input
+                    type="checkbox"
+                    checked={newMemberCanModify}
+                    onChange={(e) => setNewMemberCanModify(e.target.checked)}
+                    className="rounded text-primary-600 focus:ring-primary-500 w-3.5 h-3.5"
+                  />
+                  <span>Permís per donar d'alta i modificar productes/receptes</span>
+                </label>
+                <Button type="submit" variant="primary" size="sm" className="text-xs py-1 px-3">
+                  <UserPlus className="w-3.5 h-3.5 mr-1" />
+                  Afegir
+                </Button>
+              </div>
+            </form>
+
+            {/* Llista de membres actuals */}
+            <div className="space-y-2">
+              <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                Membres actuals ({managingFamily.members.length})
+              </span>
+
+              <div className="divide-y divide-zinc-100 dark:divide-zinc-800 border border-zinc-200/80 dark:border-zinc-800 rounded-xl overflow-hidden">
+                {managingFamily.members.map((member) => {
+                  const canMod = member.role === "admin" || member.canModify === true;
+                  return (
+                    <div
+                      key={member.id}
+                      className="p-3 bg-white dark:bg-zinc-900 flex items-center justify-between gap-3 text-xs"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div
+                          className="w-7 h-7 rounded-full flex items-center justify-center text-white font-bold text-[11px] shrink-0"
+                          style={{ backgroundColor: member.color || "#16a34a" }}
+                        >
+                          {member.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="truncate">
+                          <div className="font-semibold text-zinc-900 dark:text-white flex items-center gap-1.5">
+                            {member.name}
+                            {member.role === "admin" && (
+                              <span className="text-[10px] bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 px-1.5 py-0.5 rounded font-medium">
+                                Organitzador
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-zinc-400 truncate">{member.email}</div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        {member.role === "admin" ? (
+                          <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 font-medium">
+                            Edició autoritzada (Admin)
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleToggleMemberCanModify(member.id, member.canModify)}
+                            className={`text-[11px] px-2 py-0.5 rounded-full font-medium transition cursor-pointer border ${
+                              member.canModify
+                                ? "bg-primary-50 dark:bg-primary-950/40 text-primary-700 dark:text-primary-300 border-primary-200 dark:border-primary-800 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200"
+                                : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 border-zinc-200 dark:border-zinc-700 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200"
+                            }`}
+                            title="Fes clic per canviar permís d'edició"
+                          >
+                            {member.canModify ? "✓ Edició permesa" : "Només consulta"}
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveMember(member.id, member.name)}
+                          className="p-1.5 text-zinc-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition"
+                          title="Treure membre"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="pt-2 flex justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setManagingFamily(null)}
+              >
+                Tanca
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   </AuthGuard>
 );

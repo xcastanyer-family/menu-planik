@@ -21,8 +21,14 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { LocalStore } from "@/lib/storage/local-store";
+import { ShieldCheck, Eye } from "lucide-react";
 
 export default function ProductsPage() {
+  const [session, setSession] = useState(LocalStore.getCurrentSession());
+  const isSuperadmin = session?.role === "superadmin";
+  const canModify = isSuperadmin || session?.role === "admin" || session?.canModify === true;
+
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [tableMissing, setTableMissing] = useState(false);
@@ -30,10 +36,23 @@ export default function ProductsPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
 
   // Mode de vista: "scanner" (dedicada a la captura ràpida) o "catalog" (llistat de productes existents)
-  const [viewMode, setViewMode] = useState<"scanner" | "catalog">("scanner");
+  const [viewMode, setViewMode] = useState<"scanner" | "catalog">(canModify ? "scanner" : "catalog");
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [productToEdit, setProductToEdit] = useState<Product | null>(null);
+
+  useEffect(() => {
+    const updateSession = () => {
+      const s = LocalStore.getCurrentSession();
+      setSession(s);
+      const userCanMod = s?.role === "superadmin" || s?.role === "admin" || s?.canModify === true;
+      if (!userCanMod) {
+        setViewMode("catalog");
+      }
+    };
+    window.addEventListener("menuplanik_session_changed", updateSession);
+    return () => window.removeEventListener("menuplanik_session_changed", updateSession);
+  }, []);
 
   const loadProducts = async () => {
     setIsLoading(true);
@@ -53,6 +72,10 @@ export default function ProductsPage() {
   }, []);
 
   const handleDelete = async (id: string, name: string) => {
+    if (!isSuperadmin) {
+      toast.error("Només el Superadministrador pot eliminar productes.");
+      return;
+    }
     if (confirm(`Vols eliminar el producte "${name}" de la base de dades?`)) {
       const ok = await SupabaseProductService.deleteProduct(id);
       if (ok) {
@@ -111,18 +134,20 @@ export default function ProductsPage() {
       {/* Selector de mode superior (Pestanyes netes) */}
       <div className="flex items-center justify-center sm:justify-start">
         <div className="bg-zinc-100 dark:bg-zinc-800/80 p-1 rounded-2xl flex items-center gap-1 border border-zinc-200/80 dark:border-zinc-700/60 shadow-inner w-full sm:w-auto">
-          <button
-            type="button"
-            onClick={() => setViewMode("scanner")}
-            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition ${
-              viewMode === "scanner"
-                ? "bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white shadow-sm"
-                : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200"
-            }`}
-          >
-            <Camera className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-            <span className="truncate">Captura Ràpida</span>
-          </button>
+          {canModify && (
+            <button
+              type="button"
+              onClick={() => setViewMode("scanner")}
+              className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition ${
+                viewMode === "scanner"
+                  ? "bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white shadow-sm"
+                  : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200"
+              }`}
+            >
+              <Camera className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <span className="truncate">Captura Ràpida</span>
+            </button>
+          )}
 
           <button
             type="button"
@@ -135,12 +160,15 @@ export default function ProductsPage() {
           >
             <LayoutGrid className="w-4 h-4 text-primary-600 dark:text-primary-400 shrink-0" />
             <span className="truncate">Catàleg ({products.length})</span>
+            {!canModify && (
+              <span className="ml-1 text-[10px] text-zinc-400 font-normal hidden sm:inline">(Només Consulta)</span>
+            )}
           </button>
         </div>
       </div>
 
       {/* VISTA 1: PANTALLA DEDICADA DE CAPTURA RÀPIDA (MINIMALISTA, SENSE LLISTAT DE PRODUCTES) */}
-      {viewMode === "scanner" && (
+      {viewMode === "scanner" && canModify && (
         <ContinuousProductScanner
           totalCatalogProducts={products.length}
           onOpenCatalog={() => setViewMode("catalog")}
@@ -173,7 +201,9 @@ export default function ProductsPage() {
                     Catàleg de Productes
                   </h1>
                   <p className="text-xs text-zinc-500">
-                    Base de dades centralitzada de productes per a les receptes i la llista de la compra.
+                    {canModify
+                      ? "Base de dades centralitzada de productes per a les receptes i la llista de la compra."
+                      : "Catàleg centralitzat de productes (mode consulta per al teu usuari)."}
                   </p>
                 </div>
               </div>
@@ -192,28 +222,32 @@ export default function ProductsPage() {
                 <span className="hidden sm:inline">Actualitza</span>
               </Button>
 
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setProductToEdit(null);
-                  setIsCreateOpen(true);
-                }}
-                className="text-xs"
-              >
-                <Plus className="w-3.5 h-3.5 mr-1" />
-                Nou Manual
-              </Button>
+              {canModify && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setProductToEdit(null);
+                      setIsCreateOpen(true);
+                    }}
+                    className="text-xs"
+                  >
+                    <Plus className="w-3.5 h-3.5 mr-1" />
+                    Nou Manual
+                  </Button>
 
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => setViewMode("scanner")}
-                className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-semibold text-xs shadow-md shadow-emerald-500/20"
-              >
-                <Camera className="w-3.5 h-3.5 mr-1.5" />
-                Captura Ràpida (Codi)
-              </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => setViewMode("scanner")}
+                    className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-semibold text-xs shadow-md shadow-emerald-500/20"
+                  >
+                    <Camera className="w-3.5 h-3.5 mr-1.5" />
+                    Captura Ràpida (Codi)
+                  </Button>
+                </>
+              )}
             </div>
           </div>
 
@@ -345,25 +379,31 @@ export default function ProductsPage() {
                   </div>
 
                   {/* Bottom Actions */}
-                  <div className="flex items-center justify-end gap-1 pt-2 border-t border-zinc-100 dark:border-zinc-800">
-                    <button
-                      onClick={() => {
-                        setProductToEdit(product);
-                        setIsCreateOpen(true);
-                      }}
-                      className="p-1.5 rounded-lg text-zinc-400 hover:text-primary-600 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition"
-                      title="Edita"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(product.id, product.name)}
-                      className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition"
-                      title="Elimina"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+                  {(canModify || isSuperadmin) && (
+                    <div className="flex items-center justify-end gap-1 pt-2 border-t border-zinc-100 dark:border-zinc-800">
+                      {canModify && (
+                        <button
+                          onClick={() => {
+                            setProductToEdit(product);
+                            setIsCreateOpen(true);
+                          }}
+                          className="p-1.5 rounded-lg text-zinc-400 hover:text-primary-600 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition"
+                          title="Edita producte"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      {isSuperadmin && (
+                        <button
+                          onClick={() => handleDelete(product.id, product.name)}
+                          className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition"
+                          title="Elimina producte (Exclusiu Superadmin)"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

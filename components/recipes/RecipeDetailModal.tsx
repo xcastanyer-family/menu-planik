@@ -30,6 +30,16 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
   const [servings, setServings] = useState<number>(recipe?.servings || 2);
   const [checkedIngredients, setCheckedIngredients] = useState<Record<string, boolean>>({});
 
+  const [session, setSession] = useState(LocalStore.getCurrentSession());
+  useEffect(() => {
+    const updateSession = () => setSession(LocalStore.getCurrentSession());
+    window.addEventListener("menuplanik_session_changed", updateSession);
+    return () => window.removeEventListener("menuplanik_session_changed", updateSession);
+  }, []);
+
+  const isSuperadmin = session?.role === "superadmin";
+  const canModify = isSuperadmin || session?.role === "admin" || session?.canModify === true;
+
   // Edit Mode state
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -166,6 +176,11 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
       instructions: steps.length > 0 ? steps : recipe.instructions,
     };
 
+    if (!canModify) {
+      toast.error("No disposes de permisos per modificar receptes.");
+      return;
+    }
+
     setIsSaving(true);
     try {
       if (onRecipeUpdated) {
@@ -181,6 +196,11 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
   };
 
   const handleDelete = async () => {
+    if (!isSuperadmin) {
+      toast.error("Només el Superadministrador pot eliminar receptes.");
+      return;
+    }
+
     if (!confirm(`Segur que vols eliminar la recepta "${recipe.title}"? Aquesta acció no es pot desfer.`)) {
       return;
     }
@@ -609,7 +629,7 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
                 )}
               </Button>
 
-              {onRecipeUpdated && (
+              {onRecipeUpdated && canModify && (
                 <Button
                   type="button"
                   variant="outline"
@@ -622,7 +642,7 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
                 </Button>
               )}
 
-              {onRecipeDeleted && (
+              {onRecipeDeleted && isSuperadmin && (
                 <Button
                   type="button"
                   variant="ghost"
@@ -630,6 +650,7 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
                   onClick={handleDelete}
                   isLoading={isDeleting}
                   className="text-xs text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 hover:text-red-700 justify-center"
+                  title="Elimina (Exclusiu Superadmin)"
                 >
                   <Trash2 className="w-3.5 h-3.5 mr-1" />
                   <span>Elimina</span>

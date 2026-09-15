@@ -12,7 +12,13 @@ import { CreateRecipeModal } from "@/components/recipes/CreateRecipeModal";
 import { Button } from "@/components/ui/Button";
 import { Search, Plus, Sparkles, BookOpen } from "lucide-react";
 
+import { toast } from "sonner";
+
 export default function RecipesPage() {
+  const [session, setSession] = useState(LocalStore.getCurrentSession());
+  const isSuperadmin = session?.role === "superadmin";
+  const canModify = isSuperadmin || session?.role === "admin" || session?.canModify === true;
+
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [search, setSearch] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
@@ -35,22 +41,42 @@ export default function RecipesPage() {
       setRecipes(LocalStore.getRecipes());
     };
 
+    const handleSessionChanged = () => {
+      setSession(LocalStore.getCurrentSession());
+    };
+
     window.addEventListener("menuplanik_recipes_changed", handleChanged);
-    return () => window.removeEventListener("menuplanik_recipes_changed", handleChanged);
+    window.addEventListener("menuplanik_session_changed", handleSessionChanged);
+    return () => {
+      window.removeEventListener("menuplanik_recipes_changed", handleChanged);
+      window.removeEventListener("menuplanik_session_changed", handleSessionChanged);
+    };
   }, []);
 
   const handleRecipeCreated = async (newRecipe: Recipe) => {
+    if (!canModify) {
+      toast.error("No disposes de permisos per donar d'alta noves receptes.");
+      return;
+    }
     const updated = await SupabaseRecipeService.addRecipe(newRecipe);
     setRecipes(updated);
   };
 
   const handleRecipeUpdated = async (updatedRecipe: Recipe) => {
+    if (!canModify) {
+      toast.error("No disposes de permisos per modificar receptes.");
+      return;
+    }
     const updated = await SupabaseRecipeService.updateRecipe(updatedRecipe);
     setRecipes(updated);
     setSelectedRecipe(updatedRecipe);
   };
 
   const handleRecipeDeleted = async (recipeId: string) => {
+    if (!isSuperadmin) {
+      toast.error("Només el Superadministrador pot eliminar receptes.");
+      return;
+    }
     const updated = await SupabaseRecipeService.deleteRecipe(recipeId);
     setRecipes(updated);
     setSelectedRecipe(null);
@@ -107,14 +133,16 @@ export default function RecipesPage() {
           </p>
         </div>
 
-        <Button
-          variant="primary"
-          onClick={() => setIsCreateOpen(true)}
-          className="w-full sm:w-auto justify-center bg-gradient-to-r from-primary-600 to-emerald-600 hover:from-primary-700 hover:to-emerald-700 text-white font-semibold shadow-sm"
-        >
-          <Plus className="w-4 h-4 mr-1.5" />
-          Afegeix o Genera Recepta
-        </Button>
+        {canModify && (
+          <Button
+            variant="primary"
+            onClick={() => setIsCreateOpen(true)}
+            className="w-full sm:w-auto justify-center bg-gradient-to-r from-primary-600 to-emerald-600 hover:from-primary-700 hover:to-emerald-700 text-white font-semibold shadow-sm"
+          >
+            <Plus className="w-4 h-4 mr-1.5" />
+            Afegeix o Genera Recepta
+          </Button>
+        )}
       </div>
 
       {/* Search & Filters */}
@@ -188,8 +216,8 @@ export default function RecipesPage() {
         recipe={selectedRecipe}
         isOpen={!!selectedRecipe}
         onClose={() => setSelectedRecipe(null)}
-        onRecipeUpdated={handleRecipeUpdated}
-        onRecipeDeleted={handleRecipeDeleted}
+        onRecipeUpdated={canModify ? handleRecipeUpdated : undefined}
+        onRecipeDeleted={isSuperadmin ? handleRecipeDeleted : undefined}
         onStartCooking={(recipe) => {
           setSelectedRecipe(null);
           setCookingRecipe(recipe);

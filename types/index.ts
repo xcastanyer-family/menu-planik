@@ -193,6 +193,7 @@ export interface UserProfile {
   email: string;
   fullName: string;
   role: UserRole;
+  canModify?: boolean; // Permís per donar d'alta o modificar productes i receptes
   status: UserAccountStatus;
   familyId?: string;
   familyName?: string;
@@ -210,6 +211,7 @@ export interface FamilyMember {
   email: string;
   password?: string;
   role: UserRole;
+  canModify?: boolean; // Permís per donar d'alta o modificar productes i receptes
   joinedAt: string;
   color?: string;
 }
@@ -236,6 +238,7 @@ export interface UserSession {
   name: string;
   email: string;
   role: UserRole;
+  canModify?: boolean; // Permís per donar d'alta o modificar productes i receptes
   status?: UserAccountStatus;
   familyCode: string;
   familyName: string;

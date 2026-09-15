@@ -1,5 +1,16 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { parseSessionCookie, SESSION_COOKIE_NAME } from "@/lib/auth/session-cookie";
+
+function getSessionFromRequest(request: Request) {
+  const cookieHeader = request.headers.get("cookie") || "";
+  const match = cookieHeader
+    .split(";")
+    .map((c) => c.trim())
+    .find((c) => c.startsWith(`${SESSION_COOKIE_NAME}=`));
+  const rawValue = match ? match.substring(SESSION_COOKIE_NAME.length + 1) : null;
+  return parseSessionCookie(rawValue);
+}
 
 function mapDbToProduct(row: any) {
   return {
@@ -81,6 +92,17 @@ export async function POST(request: Request) {
   }
 
   try {
+    const session = getSessionFromRequest(request);
+    if (session) {
+      const canModify = session.role === "superadmin" || session.role === "admin" || session.canModify === true;
+      if (!canModify) {
+        return NextResponse.json(
+          { success: false, error: "No disposes de permisos per donar d'alta o modificar productes." },
+          { status: 403 }
+        );
+      }
+    }
+
     const body = await request.json();
     const p = body.product;
     if (!p || !p.name?.trim()) {
@@ -135,6 +157,17 @@ export async function PUT(request: Request) {
   }
 
   try {
+    const session = getSessionFromRequest(request);
+    if (session) {
+      const canModify = session.role === "superadmin" || session.role === "admin" || session.canModify === true;
+      if (!canModify) {
+        return NextResponse.json(
+          { success: false, error: "No disposes de permisos per donar d'alta o modificar productes." },
+          { status: 403 }
+        );
+      }
+    }
+
     const body = await request.json();
     const p = body.product;
     if (!p || !p.id) {
@@ -179,6 +212,14 @@ export async function DELETE(request: Request) {
   }
 
   try {
+    const session = getSessionFromRequest(request);
+    if (session && session.role !== "superadmin") {
+      return NextResponse.json(
+        { success: false, error: "Només el Superadministrador pot eliminar productes de la base de dades." },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const { productId } = body;
     if (!productId) {

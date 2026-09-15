@@ -1,6 +1,17 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { INITIAL_RECIPES } from "@/lib/storage/mock-data";
+import { parseSessionCookie, SESSION_COOKIE_NAME } from "@/lib/auth/session-cookie";
+
+function getSessionFromRequest(request: Request) {
+  const cookieHeader = request.headers.get("cookie") || "";
+  const match = cookieHeader
+    .split(";")
+    .map((c) => c.trim())
+    .find((c) => c.startsWith(`${SESSION_COOKIE_NAME}=`));
+  const rawValue = match ? match.substring(SESSION_COOKIE_NAME.length + 1) : null;
+  return parseSessionCookie(rawValue);
+}
 
 function mapDbToRecipe(row: any) {
   return {
@@ -53,6 +64,17 @@ export async function GET() {
 export async function POST(request: Request) {
   const adminClient = createAdminClient();
   try {
+    const session = getSessionFromRequest(request);
+    if (session) {
+      const canModify = session.role === "superadmin" || session.role === "admin" || session.canModify === true;
+      if (!canModify) {
+        return NextResponse.json(
+          { success: false, error: "No disposes de permisos per donar d'alta o modificar receptes." },
+          { status: 403 }
+        );
+      }
+    }
+
     const body = await request.json();
     const recipe = body.recipe;
     if (!recipe || !recipe.title) {
@@ -102,6 +124,17 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   const adminClient = createAdminClient();
   try {
+    const session = getSessionFromRequest(request);
+    if (session) {
+      const canModify = session.role === "superadmin" || session.role === "admin" || session.canModify === true;
+      if (!canModify) {
+        return NextResponse.json(
+          { success: false, error: "No disposes de permisos per donar d'alta o modificar receptes." },
+          { status: 403 }
+        );
+      }
+    }
+
     const body = await request.json();
     const recipe = body.recipe;
     if (!recipe || !recipe.id) {
@@ -154,6 +187,14 @@ export async function PUT(request: Request) {
 export async function DELETE(request: Request) {
   const adminClient = createAdminClient();
   try {
+    const session = getSessionFromRequest(request);
+    if (session && session.role !== "superadmin") {
+      return NextResponse.json(
+        { success: false, error: "Només el Superadministrador pot eliminar receptes de la plataforma." },
+        { status: 403 }
+      );
+    }
+
     const { recipeId } = await request.json();
     if (!recipeId) {
       return NextResponse.json({ success: false, error: "recipeId is required" }, { status: 400 });

@@ -9,6 +9,7 @@ export interface CookieSessionData {
   name: string;
   email: string;
   role: UserRole;
+  canModify?: boolean;
   status?: UserAccountStatus;
   familyCode: string;
   familyName: string;
@@ -33,6 +34,7 @@ export function setSessionCookie(session: UserSession | null) {
     name: session.name,
     email: session.email,
     role: session.role,
+    canModify: session.canModify,
     status: session.status,
     familyCode: session.familyCode,
     familyName: session.familyName,

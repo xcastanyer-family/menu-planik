@@ -9,8 +9,10 @@ import { Input } from "@/components/ui/Input";
 import {
   UtensilsCrossed,
   LogIn,
+  KeyRound,
 } from "lucide-react";
 import { toast } from "sonner";
+import { JoinFamilyModal } from "@/components/family/JoinFamilyModal";
 
 function LoginFormContent() {
   const router = useRouter();
@@ -21,6 +23,7 @@ function LoginFormContent() {
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [isLoginLoading, setIsLoginLoading] = useState(false);
+  const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
 
   const navigateAfterAuth = (defaultPath: string) => {
     const target = redirectPath || defaultPath;
@@ -136,6 +139,22 @@ function LoginFormContent() {
               <LogIn className="w-4 h-4 mr-2" />
               Entra a MenuPlanik
             </Button>
+
+            <div className="relative flex py-1 items-center">
+              <div className="flex-grow border-t border-zinc-200 dark:border-zinc-800" />
+              <span className="flex-shrink mx-3 text-[11px] uppercase tracking-wider text-zinc-400">o també</span>
+              <div className="flex-grow border-t border-zinc-200 dark:border-zinc-800" />
+            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsJoinModalOpen(true)}
+              className="w-full py-2 text-xs font-semibold text-primary-700 dark:text-primary-300 border-primary-200 dark:border-primary-900/60 bg-primary-50/40 dark:bg-primary-950/20 hover:bg-primary-100/60 transition flex items-center justify-center"
+            >
+              <KeyRound className="w-3.5 h-3.5 mr-1.5 text-primary-600 dark:text-primary-400" />
+              Tens un Codi de Família? Accedeix aquí
+            </Button>
           </form>
 
           <div className="pt-4 border-t border-zinc-100 dark:border-zinc-800 text-center text-xs text-zinc-400 dark:text-zinc-500">
@@ -143,6 +162,12 @@ function LoginFormContent() {
           </div>
         </div>
       </div>
+
+      <JoinFamilyModal
+        isOpen={isJoinModalOpen}
+        onClose={() => setIsJoinModalOpen(false)}
+        onSuccess={() => navigateAfterAuth("/planner")}
+      />
     </div>
   );
 }

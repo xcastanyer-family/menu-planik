@@ -33,6 +33,8 @@ import {
   UserMinus,
   Shield,
   X,
+  Copy,
+  Check,
 } from "lucide-react";
 import { toast } from "sonner";
 import { SupabaseAuthService } from "@/lib/supabase/auth";
@@ -57,7 +59,9 @@ export default function AdminDashboardPage() {
   const [managingFamily, setManagingFamily] = useState<Family | null>(null);
   const [newMemberName, setNewMemberName] = useState("");
   const [newMemberEmail, setNewMemberEmail] = useState("");
+  const [newMemberPassword, setNewMemberPassword] = useState("user123");
   const [newMemberCanModify, setNewMemberCanModify] = useState(false);
+  const [copiedMemberId, setCopiedMemberId] = useState<string | null>(null);
 
   const refresh = async () => {
     setSession(LocalStore.getCurrentSession());
@@ -149,11 +153,13 @@ export default function AdminDashboardPage() {
     if (!managingFamily || !newMemberName.trim()) return;
 
     const email = newMemberEmail.trim() || `${newMemberName.trim().toLowerCase().replace(/\s+/g, ".")}@${managingFamily.code.toLowerCase()}.local`;
+    const password = newMemberPassword.trim() || "user123";
     const newMember = {
       id: `m-${Date.now()}`,
       familyId: managingFamily.id,
       name: newMemberName.trim(),
       email,
+      password,
       role: "user" as const,
       canModify: newMemberCanModify,
       joinedAt: new Date().toISOString(),
@@ -168,9 +174,20 @@ export default function AdminDashboardPage() {
     setManagingFamily(updatedFamily);
     setNewMemberName("");
     setNewMemberEmail("");
+    setNewMemberPassword("user123");
     setNewMemberCanModify(false);
     refresh();
-    toast.success(`Membre "${newMember.name}" afegit a la família.`);
+    toast.success(`Membre "${newMember.name}" afegit! Accés: usuari "${newMember.name}", contrasenya "${password}".`);
+  };
+
+  const handleCopyMemberCredentials = (member: { name: string; email: string; password?: string; role: string; id: string }) => {
+    const pass = member.password || (member.role === "admin" ? "admin123" : "user123");
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const text = `🔑 Credencials d'accés a MenuPlanik:\n• Usuari: ${member.name} (o ${member.email})\n• Contrasenya: ${pass}\n• Adreça: ${origin}/login`;
+    navigator.clipboard.writeText(text);
+    setCopiedMemberId(member.id);
+    toast.success(`Credencials de "${member.name}" copiades al porta-retalls!`);
+    setTimeout(() => setCopiedMemberId(null), 2500);
   };
 
   const handleToggleMemberCanModify = (memberId: string, currentVal?: boolean) => {
@@ -1097,7 +1114,7 @@ export default function AdminDashboardPage() {
                 <UserPlus className="w-3.5 h-3.5 text-primary-600" />
                 Afegeix un nou membre a la família
               </span>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <input
                   type="text"
                   placeholder="Nom o usuari *"
@@ -1112,6 +1129,15 @@ export default function AdminDashboardPage() {
                   value={newMemberEmail}
                   onChange={(e) => setNewMemberEmail(e.target.value)}
                   className="px-3 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-xs"
+                />
+                <input
+                  type="text"
+                  placeholder="Contrasenya (ex: user123)"
+                  value={newMemberPassword}
+                  onChange={(e) => setNewMemberPassword(e.target.value)}
+                  className="px-3 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-xs font-mono"
+                  title="Contrasenya per defecte: user123"
+                  required
                 />
               </div>
 
@@ -1163,10 +1189,31 @@ export default function AdminDashboardPage() {
                             )}
                           </div>
                           <div className="text-[11px] text-zinc-400 truncate">{member.email}</div>
+                          <div className="flex items-center gap-1.5 text-[10px] text-zinc-500 dark:text-zinc-400 mt-1 flex-wrap font-mono">
+                            <span className="bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded border border-zinc-200/50 dark:border-zinc-700/50">
+                              Usuari: <strong className="text-zinc-800 dark:text-zinc-200">{member.name}</strong>
+                            </span>
+                            <span className="bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded border border-zinc-200/50 dark:border-zinc-700/50">
+                              Pass: <strong className="text-zinc-800 dark:text-zinc-200">{member.password || (member.role === "admin" ? "admin123" : "user123")}</strong>
+                            </span>
+                          </div>
                         </div>
                       </div>
 
                       <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleCopyMemberCredentials(member)}
+                          className="p-1.5 text-zinc-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-950/40 rounded-lg transition"
+                          title="Copia les dades d'accés (usuari i contrasenya) per enviar-li"
+                        >
+                          {copiedMemberId === member.id ? (
+                            <Check className="w-3.5 h-3.5 text-emerald-600" />
+                          ) : (
+                            <Copy className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+
                         {member.role === "admin" ? (
                           <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 font-medium">
                             Edició autoritzada (Admin)

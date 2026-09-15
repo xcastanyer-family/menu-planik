@@ -77,6 +77,14 @@ export default function FamilyPage() {
     toast.success(`Permís de modificació ${newVal ? "activat" : "desactivat"}.`);
   };
 
+  const handleCopyMemberCredentials = (member: FamilyMember) => {
+    const pass = member.password || (member.role === "admin" ? "admin123" : "user123");
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const text = `🔑 Credencials d'accés a MenuPlanik:\n• Usuari: ${member.name} (o ${member.email})\n• Contrasenya: ${pass}\n• Adreça: ${origin}/login`;
+    navigator.clipboard.writeText(text);
+    toast.success(`Credencials de "${member.name}" copiades al porta-retalls!`);
+  };
+
   const handleSwitchSession = (member: FamilyMember) => {
     LocalStore.saveCurrentSession({
       memberId: member.id,
@@ -266,10 +274,34 @@ export default function FamilyPage() {
                     <span className="text-xs text-zinc-400 block mt-0.5">
                       {member.email} • Afegit/da el {new Date(member.joinedAt).toLocaleDateString("ca-ES")}
                     </span>
+
+                    {isOrganizer && (
+                      <div className="flex items-center gap-1.5 text-[10px] text-zinc-500 dark:text-zinc-400 mt-1 flex-wrap font-mono">
+                        <span className="bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded border border-zinc-200/50 dark:border-zinc-700/50">
+                          Usuari: <strong className="text-zinc-800 dark:text-zinc-200">{member.name}</strong>
+                        </span>
+                        <span className="bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded border border-zinc-200/50 dark:border-zinc-700/50">
+                          Pass: <strong className="text-zinc-800 dark:text-zinc-200">{member.password || (member.role === "admin" ? "admin123" : "user123")}</strong>
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2">
+                  {isOrganizer && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleCopyMemberCredentials(member)}
+                      className="text-xs text-zinc-600 dark:text-zinc-300 hover:text-primary-600"
+                      title="Copia les dades d'accés (usuari i contrasenya) per enviar-li"
+                    >
+                      <Copy className="w-3.5 h-3.5 mr-1" />
+                      Credencials
+                    </Button>
+                  )}
+
                   {!isCurrent && (
                     <Button
                       variant="ghost"

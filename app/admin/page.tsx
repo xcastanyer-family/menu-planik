@@ -205,6 +205,18 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const handleResetMemberPassword = (member: { id: string; name: string; email: string }) => {
+    if (!managingFamily) return;
+    const newPass = prompt(`Introdueix la nova contrasenya per a ${member.name} (${member.email}):`, "admin123");
+    if (!newPass || !newPass.trim()) return;
+
+    LocalStore.updateFamilyMember(member.id, { password: newPass.trim() }, managingFamily.id);
+    const updatedFamily = LocalStore.getFamily(managingFamily.id);
+    setManagingFamily(updatedFamily);
+    refresh();
+    toast.success(`Contrasenya de "${member.name}" actualitzada a: ${newPass.trim()}`);
+  };
+
   const handleApproveRecipe = (recipeId: string, title: string) => {
     LocalStore.approveRecipePublic(recipeId);
     toast.success(`Recepta "${title}" aprovada i publicada al Catàleg Global!`);
@@ -1206,6 +1218,15 @@ export default function AdminDashboardPage() {
                           ) : (
                             <Copy className="w-3.5 h-3.5" />
                           )}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleResetMemberPassword(member)}
+                          className="p-1.5 text-zinc-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40 rounded-lg transition"
+                          title="Canvia o restableix la contrasenya d'aquest membre"
+                        >
+                          <KeyRound className="w-3.5 h-3.5" />
                         </button>
 
                         {member.role === "admin" ? (

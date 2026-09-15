@@ -687,6 +687,53 @@ export const LocalStore = {
     this.saveFamily(updated);
   },
 
+  resetUserPassword(emailOrUsername: string, newPassword: string): { success: boolean; message: string } {
+    const cleanId = emailOrUsername.trim().toLowerCase();
+    const cleanPass = newPassword.trim();
+    if (!cleanPass) {
+      return { success: false, message: "La contrasenya no pot estar buida." };
+    }
+
+    const all = this.getAllFamilies();
+    let found = false;
+
+    const updatedFamilies = all.map((fam) => {
+      let famChanged = false;
+      const updatedMembers = fam.members.map((m) => {
+        if (m.email.toLowerCase() === cleanId || m.name.toLowerCase() === cleanId) {
+          found = true;
+          famChanged = true;
+          return { ...m, password: cleanPass };
+        }
+        return m;
+      });
+
+      if (fam.organizerEmail.toLowerCase() === cleanId) {
+        found = true;
+        famChanged = true;
+      }
+
+      return famChanged ? { ...fam, members: updatedMembers } : fam;
+    });
+
+    if (!found) {
+      return { success: false, message: `No s'ha trobat cap compte amb l'usuari o correu "${emailOrUsername}".` };
+    }
+
+    this.saveAllFamilies(updatedFamilies);
+
+    // Call API in background
+    if (typeof fetch !== "undefined") {
+      fetch("/api/admin/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: cleanId, newPassword: cleanPass }),
+      }).catch(() => {});
+    }
+
+    return { success: true, message: `Contrasenya restablerta correctament!` };
+  },
+
   // --- Recipes & Public Moderation ---
   getAllRecipesRaw(): Recipe[] {
     if (typeof window === "undefined") return [];

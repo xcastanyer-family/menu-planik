@@ -29,9 +29,35 @@ export default function SettingsPage() {
   const [allergiesText, setAllergiesText] = useState("");
   const [dislikesText, setDislikesText] = useState("");
   const [isResetting, setIsResetting] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   const refreshSession = () => {
     setSession(LocalStore.getCurrentSession());
+  };
+
+  const handleUpdatePassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPassword.trim()) {
+      toast.error("Introdueix una contrasenya.");
+      return;
+    }
+    if (newPassword.length < 4) {
+      toast.error("La contrasenya ha de tenir com a mínim 4 caràcters.");
+      return;
+    }
+
+    setIsChangingPassword(true);
+    const identifier = session.email || session.name;
+    const res = LocalStore.resetUserPassword(identifier, newPassword.trim());
+    setIsChangingPassword(false);
+
+    if (res.success) {
+      toast.success("Contrasenya actualitzada correctament!");
+      setNewPassword("");
+    } else {
+      toast.error(res.message);
+    }
   };
 
   useEffect(() => {
@@ -228,6 +254,41 @@ export default function SettingsPage() {
           </Button>
         </a>
       </div>
+
+      {/* Change Password Card */}
+      {session.isAuthenticated && (
+        <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 p-6 shadow-sm space-y-4">
+          <div className="flex items-center gap-2 pb-2 border-b border-zinc-100 dark:border-zinc-800">
+            <Key className="w-4 h-4 text-amber-500" />
+            <h2 className="text-base font-bold text-zinc-900 dark:text-white">
+              Seguretat i Canvi de Contrasenya
+            </h2>
+          </div>
+          <form onSubmit={handleUpdatePassword} className="space-y-3">
+            <p className="text-xs text-zinc-500">
+              Canvia la contrasenya del teu compte actiu (<strong>{session.name}</strong> • {session.email}).
+            </p>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+              <input
+                type="password"
+                placeholder="Escriu la nova contrasenya"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="flex-1 px-3.5 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm"
+              />
+              <Button
+                type="submit"
+                variant="primary"
+                size="sm"
+                isLoading={isChangingPassword}
+                className="bg-amber-600 hover:bg-amber-700 text-white font-semibold py-2 px-4"
+              >
+                Actualitza Contrasenya
+              </Button>
+            </div>
+          </form>
+        </div>
+      )}
 
       <form onSubmit={handleSave} className="space-y-6">
         {/* Dietary Preferences Card */}
